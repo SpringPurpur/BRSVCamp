@@ -115,10 +115,10 @@ struct GroupInfoRow: View {
                     Image(systemName: codeCopied ? "checkmark" : "doc.on.doc")
                         .font(.caption)
                 }
-                .foregroundStyle(codeCopied ? .green : .accentColor)
+                .foregroundStyle(codeCopied ? .green : Color.accentColor)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .background(.accentColor.opacity(0.1), in: Capsule())
+                .background(Color.accentColor.opacity(0.1), in: Capsule())
             }
             .buttonStyle(.plain)
         }

@@ -102,7 +102,7 @@ struct POIMapPin: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 10)
-                .fill(.white)
+                .fill(Color(UIColor.systemBackground))
                 .frame(width: 38, height: 38)
                 .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
             Image(systemName: poi.category.systemImage)
@@ -173,7 +173,7 @@ struct MemberChip: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(.white.opacity(0.9), in: Capsule())
+        .background(.regularMaterial, in: Capsule())
         .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
     }
 
