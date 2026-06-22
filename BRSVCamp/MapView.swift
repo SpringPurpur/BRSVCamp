@@ -22,11 +22,14 @@ final class MapViewModel {
 
 struct MapView: View {
     @State private var vm = MapViewModel()
+    @State private var locationService = LocationService()
+    @State private var hasCenteredOnUser = false
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 Map(position: $vm.cameraPosition) {
+                    UserAnnotation()
                     ForEach(vm.members) { member in
                         Annotation(member.name, coordinate: member.coordinate, anchor: .bottom) {
                             MemberMapPin(member: member)
@@ -42,6 +45,18 @@ struct MapView: View {
                 }
                 .mapStyle(.standard(elevation: .realistic))
                 .ignoresSafeArea(edges: .top)
+                .onAppear { locationService.requestPermission() }
+                .onChange(of: locationService.hasLocation) { _, hasLocation in
+                    guard hasLocation, !hasCenteredOnUser,
+                          let coord = locationService.userLocation else { return }
+                    hasCenteredOnUser = true
+                    withAnimation {
+                        vm.cameraPosition = .region(MKCoordinateRegion(
+                            center: coord,
+                            span: MKCoordinateSpan(latitudeDelta: 0.018, longitudeDelta: 0.018)
+                        ))
+                    }
+                }
 
                 MemberStatusBar(members: vm.members) { member in
                     vm.selectedMember = member
@@ -50,6 +65,22 @@ struct MapView: View {
             .navigationTitle("BRSVCamp")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        guard let coord = locationService.userLocation else { return }
+                        withAnimation {
+                            vm.cameraPosition = .region(MKCoordinateRegion(
+                                center: coord,
+                                span: MKCoordinateSpan(latitudeDelta: 0.018, longitudeDelta: 0.018)
+                            ))
+                        }
+                    } label: {
+                        Image(systemName: locationService.hasLocation
+                              ? "location.fill" : "location.slash")
+                            .font(.title3)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         // TODO: add POI
