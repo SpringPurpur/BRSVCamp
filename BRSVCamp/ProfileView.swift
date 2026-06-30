@@ -6,24 +6,25 @@ struct ProfileView: View {
     private let groupName = "Aventurierii"
     private let inviteCode = "BRSV-4829"
 
+    @Environment(AuthService.self) private var auth
+    // TODO: înlocuit cu userId real din auth.currentUserId când mock data e scos
+    @State private var prefsService = UserPreferencesService(userId: UUID())
+
     var body: some View {
         NavigationStack {
             List {
-                // User header (outside list styling)
                 Section {
                     UserHeaderCard(user: currentUser)
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                 }
 
-                // Group section
                 Section {
                     GroupInfoRow(name: groupName, inviteCode: inviteCode)
                 } header: {
                     Text("Grupul meu")
                 }
 
-                // Members section
                 Section {
                     ForEach(members) { member in
                         MemberListRow(member: member, isCurrentUser: member.id == currentUser.id)
@@ -32,7 +33,6 @@ struct ProfileView: View {
                     Text("Membrii (\(members.count))")
                 }
 
-                // Trip stats section
                 Section {
                     StatRow(icon: "mappin.circle.fill", color: .orange,
                             label: "Puncte marcate", value: "\(MockData.pois.count)")
@@ -44,7 +44,21 @@ struct ProfileView: View {
                     Text("Statistici trip")
                 }
 
-                // Actions section
+                Section {
+                    NavigationLink(destination: PrivacySettingsView(prefsService: prefsService)) {
+                        Label("Confidențialitate", systemImage: "hand.raised.fill")
+                            .labelStyle(ColoredIconLabelStyle(color: .blue))
+                    }
+                    Button {
+                        Task { await auth.signOut() }
+                    } label: {
+                        Label("Deconectare", systemImage: "rectangle.portrait.and.arrow.right")
+                            .labelStyle(ColoredIconLabelStyle(color: .gray))
+                    }
+                } header: {
+                    Text("Cont")
+                }
+
                 Section {
                     Button(role: .destructive) {
                         // TODO: leave group
