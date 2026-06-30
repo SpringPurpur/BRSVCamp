@@ -1,0 +1,19 @@
+# Credentials — nu comite niciodată fișierul real
+BRSVCamp/SupabaseConfig.swift
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+.build/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
