@@ -1,14 +1,14 @@
 //
-//  BRSVCampTests.swift
-//  BRSVCampTests
+//  FriendCampTests.swift
+//  FriendCampTests
 //
 //  Created by Vaceff Vlad on 21/06/2026.
 //
 
 import Testing
-@testable import BRSVCamp
+@testable import FriendCamp
 
-struct BRSVCampTests {
+struct FriendCampTests {
 
     @Test func example() async throws {
         // Write your test here and use APIs like `#expect(...)` to check expected conditions.

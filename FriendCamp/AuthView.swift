@@ -43,7 +43,7 @@ struct AuthView: View {
                         Image(systemName: "tent.fill")
                             .font(.system(size: 52))
                             .foregroundStyle(.blue.gradient)
-                        Text("BRSVCamp")
+                        Text("FriendCamp")
                             .font(.largeTitle.bold())
                         Text("Grupul tău de aventuri")
                             .font(.subheadline)

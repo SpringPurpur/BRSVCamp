@@ -1,4 +1,4 @@
-# BRSVCamp — Supabase Schema & Setup
+# FriendCamp — Supabase Schema & Setup
 
 Rulează secțiunile SQL în **Supabase → SQL Editor**, în ordinea în care apar.
 

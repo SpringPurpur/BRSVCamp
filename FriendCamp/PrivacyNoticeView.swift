@@ -8,7 +8,7 @@ struct PrivacyNoticeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     NoticeSection(title: "Cine suntem") {
-                        Text("BRSVCamp este o aplicație privată, folosită exclusiv de un grup restrâns de prieteni. Nu există un operator comercial — administratorul grupului este responsabil de datele stocate pentru acest grup.")
+                        Text("FriendCamp este o aplicație privată, folosită exclusiv de un grup restrâns de prieteni. Nu există un operator comercial — administratorul grupului este responsabil de datele stocate pentru acest grup.")
                     }
 
                     NoticeSection(title: "Ce date colectăm") {

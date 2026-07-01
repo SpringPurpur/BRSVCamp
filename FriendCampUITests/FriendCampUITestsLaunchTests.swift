@@ -1,13 +1,13 @@
 //
-//  BRSVCampUITestsLaunchTests.swift
-//  BRSVCampUITests
+//  FriendCampUITestsLaunchTests.swift
+//  FriendCampUITests
 //
 //  Created by Vaceff Vlad on 21/06/2026.
 //
 
 import XCTest
 
-final class BRSVCampUITestsLaunchTests: XCTestCase {
+final class FriendCampUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

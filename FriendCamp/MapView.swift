@@ -76,7 +76,7 @@ struct MapView: View {
                     vm.selectedMember = member
                 }
             }
-            .navigationTitle("BRSVCamp")
+            .navigationTitle("FriendCamp")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

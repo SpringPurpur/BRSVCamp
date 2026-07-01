@@ -17,51 +17,51 @@
 			containerPortal = A15B0FF32FE7FDD200009EA2 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A15B0FFA2FE7FDD200009EA2;
-			remoteInfo = BRSVCamp;
+			remoteInfo = FriendCamp;
 		};
 		A15B10152FE7FDD400009EA2 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A15B0FF32FE7FDD200009EA2 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A15B0FFA2FE7FDD200009EA2;
-			remoteInfo = BRSVCamp;
+			remoteInfo = FriendCamp;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A15B0FFB2FE7FDD200009EA2 /* BRSVCamp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BRSVCamp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A15B100A2FE7FDD400009EA2 /* BRSVCampTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BRSVCampTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A15B10142FE7FDD400009EA2 /* BRSVCampUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BRSVCampUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A15B0FFB2FE7FDD200009EA2 /* FriendCamp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FriendCamp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A15B100A2FE7FDD400009EA2 /* FriendCampTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FriendCampTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A15B10142FE7FDD400009EA2 /* FriendCampUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FriendCampUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		A1CD8AF72FF50775003E8E68 /* Exceptions for "BRSVCamp" folder in "BRSVCamp" target */ = {
+		A1CD8AF72FF50775003E8E68 /* Exceptions for "FriendCamp" folder in "FriendCamp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 				SupabaseConfig.example.swift,
 			);
-			target = A15B0FFA2FE7FDD200009EA2 /* BRSVCamp */;
+			target = A15B0FFA2FE7FDD200009EA2 /* FriendCamp */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A15B0FFD2FE7FDD200009EA2 /* BRSVCamp */ = {
+		A15B0FFD2FE7FDD200009EA2 /* FriendCamp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				A1CD8AF72FF50775003E8E68 /* Exceptions for "BRSVCamp" folder in "BRSVCamp" target */,
+				A1CD8AF72FF50775003E8E68 /* Exceptions for "FriendCamp" folder in "FriendCamp" target */,
 			);
-			path = BRSVCamp;
+			path = FriendCamp;
 			sourceTree = "<group>";
 		};
-		A15B100D2FE7FDD400009EA2 /* BRSVCampTests */ = {
+		A15B100D2FE7FDD400009EA2 /* FriendCampTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = BRSVCampTests;
+			path = FriendCampTests;
 			sourceTree = "<group>";
 		};
-		A15B10172FE7FDD400009EA2 /* BRSVCampUITests */ = {
+		A15B10172FE7FDD400009EA2 /* FriendCampUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = BRSVCampUITests;
+			path = FriendCampUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -96,9 +96,9 @@
 		A15B0FF22FE7FDD200009EA2 = {
 			isa = PBXGroup;
 			children = (
-				A15B0FFD2FE7FDD200009EA2 /* BRSVCamp */,
-				A15B100D2FE7FDD400009EA2 /* BRSVCampTests */,
-				A15B10172FE7FDD400009EA2 /* BRSVCampUITests */,
+				A15B0FFD2FE7FDD200009EA2 /* FriendCamp */,
+				A15B100D2FE7FDD400009EA2 /* FriendCampTests */,
+				A15B10172FE7FDD400009EA2 /* FriendCampUITests */,
 				A15B0FFC2FE7FDD200009EA2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -106,9 +106,9 @@
 		A15B0FFC2FE7FDD200009EA2 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A15B0FFB2FE7FDD200009EA2 /* BRSVCamp.app */,
-				A15B100A2FE7FDD400009EA2 /* BRSVCampTests.xctest */,
-				A15B10142FE7FDD400009EA2 /* BRSVCampUITests.xctest */,
+				A15B0FFB2FE7FDD200009EA2 /* FriendCamp.app */,
+				A15B100A2FE7FDD400009EA2 /* FriendCampTests.xctest */,
+				A15B10142FE7FDD400009EA2 /* FriendCampUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -116,9 +116,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A15B0FFA2FE7FDD200009EA2 /* BRSVCamp */ = {
+		A15B0FFA2FE7FDD200009EA2 /* FriendCamp */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A15B101E2FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "BRSVCamp" */;
+			buildConfigurationList = A15B101E2FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "FriendCamp" */;
 			buildPhases = (
 				A15B0FF72FE7FDD200009EA2 /* Sources */,
 				A15B0FF82FE7FDD200009EA2 /* Frameworks */,
@@ -129,20 +129,20 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				A15B0FFD2FE7FDD200009EA2 /* BRSVCamp */,
+				A15B0FFD2FE7FDD200009EA2 /* FriendCamp */,
 			);
-			name = BRSVCamp;
+			name = FriendCamp;
 			packageProductDependencies = (
 				A1CD8AF32FF506EB003E8E68 /* PostgREST */,
 				A1CD8AF52FF506EB003E8E68 /* Supabase */,
 			);
-			productName = BRSVCamp;
-			productReference = A15B0FFB2FE7FDD200009EA2 /* BRSVCamp.app */;
+			productName = FriendCamp;
+			productReference = A15B0FFB2FE7FDD200009EA2 /* FriendCamp.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A15B10092FE7FDD400009EA2 /* BRSVCampTests */ = {
+		A15B10092FE7FDD400009EA2 /* FriendCampTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A15B10212FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "BRSVCampTests" */;
+			buildConfigurationList = A15B10212FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "FriendCampTests" */;
 			buildPhases = (
 				A15B10062FE7FDD400009EA2 /* Sources */,
 				A15B10072FE7FDD400009EA2 /* Frameworks */,
@@ -154,18 +154,18 @@
 				A15B100C2FE7FDD400009EA2 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				A15B100D2FE7FDD400009EA2 /* BRSVCampTests */,
+				A15B100D2FE7FDD400009EA2 /* FriendCampTests */,
 			);
-			name = BRSVCampTests;
+			name = FriendCampTests;
 			packageProductDependencies = (
 			);
-			productName = BRSVCampTests;
-			productReference = A15B100A2FE7FDD400009EA2 /* BRSVCampTests.xctest */;
+			productName = FriendCampTests;
+			productReference = A15B100A2FE7FDD400009EA2 /* FriendCampTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		A15B10132FE7FDD400009EA2 /* BRSVCampUITests */ = {
+		A15B10132FE7FDD400009EA2 /* FriendCampUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A15B10242FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "BRSVCampUITests" */;
+			buildConfigurationList = A15B10242FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "FriendCampUITests" */;
 			buildPhases = (
 				A15B10102FE7FDD400009EA2 /* Sources */,
 				A15B10112FE7FDD400009EA2 /* Frameworks */,
@@ -177,13 +177,13 @@
 				A15B10162FE7FDD400009EA2 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				A15B10172FE7FDD400009EA2 /* BRSVCampUITests */,
+				A15B10172FE7FDD400009EA2 /* FriendCampUITests */,
 			);
-			name = BRSVCampUITests;
+			name = FriendCampUITests;
 			packageProductDependencies = (
 			);
-			productName = BRSVCampUITests;
-			productReference = A15B10142FE7FDD400009EA2 /* BRSVCampUITests.xctest */;
+			productName = FriendCampUITests;
+			productReference = A15B10142FE7FDD400009EA2 /* FriendCampUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -209,7 +209,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A15B0FF62FE7FDD200009EA2 /* Build configuration list for PBXProject "BRSVCamp" */;
+			buildConfigurationList = A15B0FF62FE7FDD200009EA2 /* Build configuration list for PBXProject "FriendCamp" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -226,9 +226,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A15B0FFA2FE7FDD200009EA2 /* BRSVCamp */,
-				A15B10092FE7FDD400009EA2 /* BRSVCampTests */,
-				A15B10132FE7FDD400009EA2 /* BRSVCampUITests */,
+				A15B0FFA2FE7FDD200009EA2 /* FriendCamp */,
+				A15B10092FE7FDD400009EA2 /* FriendCampTests */,
+				A15B10132FE7FDD400009EA2 /* FriendCampUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -284,12 +284,12 @@
 /* Begin PBXTargetDependency section */
 		A15B100C2FE7FDD400009EA2 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A15B0FFA2FE7FDD200009EA2 /* BRSVCamp */;
+			target = A15B0FFA2FE7FDD200009EA2 /* FriendCamp */;
 			targetProxy = A15B100B2FE7FDD400009EA2 /* PBXContainerItemProxy */;
 		};
 		A15B10162FE7FDD400009EA2 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A15B0FFA2FE7FDD200009EA2 /* BRSVCamp */;
+			target = A15B0FFA2FE7FDD200009EA2 /* FriendCamp */;
 			targetProxy = A15B10152FE7FDD400009EA2 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -426,8 +426,8 @@
 				DEVELOPMENT_TEAM = V392JFZ4Q6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = BRSVCamp/Info.plist;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "BRSVCamp folosește locația pentru a-ți arăta poziția pe hartă grupului.";
+				INFOPLIST_FILE = FriendCamp/Info.plist;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "FriendCamp folosește locația pentru a-ți arăta poziția pe hartă grupului.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -439,7 +439,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.BRSVCamp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.FriendCamp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -461,8 +461,8 @@
 				DEVELOPMENT_TEAM = V392JFZ4Q6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = BRSVCamp/Info.plist;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "BRSVCamp folosește locația pentru a-ți arăta poziția pe hartă grupului.";
+				INFOPLIST_FILE = FriendCamp/Info.plist;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "FriendCamp folosește locația pentru a-ți arăta poziția pe hartă grupului.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -474,7 +474,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.BRSVCamp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.FriendCamp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -496,7 +496,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.BRSVCampTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.FriendCampTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -504,7 +504,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BRSVCamp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BRSVCamp";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FriendCamp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FriendCamp";
 			};
 			name = Debug;
 		};
@@ -518,7 +518,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.BRSVCampTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.FriendCampTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -526,7 +526,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BRSVCamp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BRSVCamp";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FriendCamp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FriendCamp";
 			};
 			name = Release;
 		};
@@ -538,7 +538,7 @@
 				DEVELOPMENT_TEAM = V392JFZ4Q6;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.BRSVCampUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.FriendCampUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -546,7 +546,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = BRSVCamp;
+				TEST_TARGET_NAME = FriendCamp;
 			};
 			name = Debug;
 		};
@@ -558,7 +558,7 @@
 				DEVELOPMENT_TEAM = V392JFZ4Q6;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.BRSVCampUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancywrappers.FriendCampUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -566,14 +566,14 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = BRSVCamp;
+				TEST_TARGET_NAME = FriendCamp;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A15B0FF62FE7FDD200009EA2 /* Build configuration list for PBXProject "BRSVCamp" */ = {
+		A15B0FF62FE7FDD200009EA2 /* Build configuration list for PBXProject "FriendCamp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A15B101C2FE7FDD400009EA2 /* Debug */,
@@ -582,7 +582,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A15B101E2FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "BRSVCamp" */ = {
+		A15B101E2FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "FriendCamp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A15B101F2FE7FDD400009EA2 /* Debug */,
@@ -591,7 +591,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A15B10212FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "BRSVCampTests" */ = {
+		A15B10212FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "FriendCampTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A15B10222FE7FDD400009EA2 /* Debug */,
@@ -600,7 +600,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A15B10242FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "BRSVCampUITests" */ = {
+		A15B10242FE7FDD400009EA2 /* Build configuration list for PBXNativeTarget "FriendCampUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A15B10252FE7FDD400009EA2 /* Debug */,

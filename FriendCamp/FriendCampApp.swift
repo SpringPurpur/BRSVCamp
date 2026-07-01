@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct BRSVCampApp: App {
+struct FriendCampApp: App {
     @State private var auth         = AuthService()
     @State private var groupService = GroupService()
     @State private var dataStore    = GroupDataStore()
@@ -27,7 +27,7 @@ struct BRSVCampApp: App {
             .environment(prefs)
             .animation(.easeInOut(duration: 0.3), value: auth.isAuthenticated)
             .animation(.easeInOut(duration: 0.25), value: groupService.currentGroup?.id)
-            // Link-ul din emailul de confirmare deschide aplicația direct (brsvcamp://auth-callback)
+            // Link-ul din emailul de confirmare deschide aplicația direct (friendcamp://auth-callback)
             .onOpenURL { url in
                 Task { await auth.handleAuthCallback(url: url) }
             }

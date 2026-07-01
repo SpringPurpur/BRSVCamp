@@ -4,7 +4,7 @@ import Observation
 
 // URL-ul de redirect din emailul de confirmare — deschide aplicația direct (vezi CFBundleURLTypes din Info.plist)
 // și trebuie adăugat în Supabase Dashboard → Authentication → URL Configuration → Redirect URLs.
-private let authCallbackURL = URL(string: "brsvcamp://auth-callback")!
+private let authCallbackURL = URL(string: "friendcamp://auth-callback")!
 
 @Observable
 final class AuthService {

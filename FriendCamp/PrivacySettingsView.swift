@@ -51,7 +51,7 @@ struct PrivacySettingsView: View {
 
             Section {
                 if let url = exportFileURL {
-                    ShareLink(item: url, preview: SharePreview("BRSVCamp Export")) {
+                    ShareLink(item: url, preview: SharePreview("FriendCamp Export")) {
                         Label("Descarcă datele mele", systemImage: "square.and.arrow.up")
                     }
                 } else {
@@ -112,7 +112,7 @@ struct PrivacySettingsView: View {
             let data = try await supabase.rpc("export_user_data").execute().data
             let timestamp = Int(Date().timeIntervalSince1970)
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("brsvcamp-export-\(timestamp).json")
+                .appendingPathComponent("friendcamp-export-\(timestamp).json")
             try data.write(to: url)
             await MainActor.run { exportFileURL = url }
         } catch {
