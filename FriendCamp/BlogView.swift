@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 // MARK: - BlogView
 
@@ -48,7 +49,7 @@ struct BlogPostRow: View {
             // Header: prima poză dacă există, altfel gradient placeholder
             Group {
                 if let firstPhoto = post.photos.first {
-                    AsyncImage(url: firstPhoto) { image in
+                    AsyncImage(url: firstPhoto.url) { image in
                         image.resizable().scaledToFill()
                     } placeholder: {
                         LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -120,7 +121,19 @@ struct BlogPostRow: View {
 
 struct BlogPostDetailView: View {
     let post: BlogPost
+    @Environment(\.dismiss) private var dismiss
+    @Environment(GroupDataStore.self) private var dataStore
+    @Environment(GroupService.self)   private var groupService
+    @Environment(AuthService.self)    private var auth
+
     @State private var fullscreenPhotoURL: URL?
+    @State private var showEditSheet = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+
+    private var canManage: Bool {
+        post.author.id == auth.currentUserId || groupService.currentUserRole == "admin"
+    }
 
     var body: some View {
         ScrollView {
@@ -128,13 +141,13 @@ struct BlogPostDetailView: View {
                 // Header: prima poză dacă există, altfel gradient placeholder
                 Group {
                     if let firstPhoto = post.photos.first {
-                        AsyncImage(url: firstPhoto) { image in
+                        AsyncImage(url: firstPhoto.url) { image in
                             image.resizable().scaledToFill()
                         } placeholder: {
                             LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
                         }
                         .contentShape(Rectangle())
-                        .onTapGesture { fullscreenPhotoURL = firstPhoto }
+                        .onTapGesture { fullscreenPhotoURL = firstPhoto.url }
                     } else {
                         LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
                     }
@@ -190,8 +203,8 @@ struct BlogPostDetailView: View {
                     if post.photos.count > 1 {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
-                                ForEach(post.photos.dropFirst(), id: \.self) { url in
-                                    AsyncImage(url: url) { image in
+                                ForEach(post.photos.dropFirst()) { photo in
+                                    AsyncImage(url: photo.url) { image in
                                         image.resizable().scaledToFill()
                                     } placeholder: {
                                         Color.gray.opacity(0.15)
@@ -200,7 +213,7 @@ struct BlogPostDetailView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 10))
                                     .clipped()
                                     .contentShape(Rectangle())
-                                    .onTapGesture { fullscreenPhotoURL = url }
+                                    .onTapGesture { fullscreenPhotoURL = photo.url }
                                 }
                             }
                         }
@@ -212,6 +225,31 @@ struct BlogPostDetailView: View {
         .navigationTitle(post.title)
         .navigationBarTitleDisplayMode(.inline)
         .ignoresSafeArea(edges: .top)
+        .toolbar {
+            if canManage {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Editează", systemImage: "pencil") { showEditSheet = true }
+                        Button("Șterge", systemImage: "trash", role: .destructive) {
+                            showDeleteConfirm = true
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+        }
+        .confirmationDialog("Ștergi această postare?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Șterge", role: .destructive) { Task { await deletePost() } }
+            Button("Anulează", role: .cancel) {}
+        }
+        .sheet(isPresented: $showEditSheet) {
+            BlogComposeSheet(editing: post) {
+                showEditSheet = false
+                dismiss()
+            }
+        }
+        .disabled(isDeleting)
         .fullScreenCover(isPresented: Binding(
             get: { fullscreenPhotoURL != nil },
             set: { if !$0 { fullscreenPhotoURL = nil } }
@@ -220,5 +258,19 @@ struct BlogPostDetailView: View {
                 FullScreenImageViewer(url: url)
             }
         }
+    }
+
+    private func deletePost() async {
+        guard let groupId = groupService.currentGroup?.id else { return }
+        isDeleting = true
+        for photo in post.photos {
+            _ = try? await supabase.storage.from("blog-photos").remove(paths: [photo.storagePath])
+        }
+        _ = try? await supabase.from("blog_posts")
+            .delete()
+            .eq("id", value: post.id.uuidString)
+            .execute()
+        await dataStore.loadPosts(groupId: groupId)
+        dismiss()
     }
 }

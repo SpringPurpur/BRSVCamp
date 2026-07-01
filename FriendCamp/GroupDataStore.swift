@@ -199,7 +199,7 @@ private extension BlogPost {
     init(from row: BlogPostRecord, colorIndex: Int) {
         let authorColor = Color(hex: row.author?.avatarColor ?? "#3B82F6")
         let dummyAuthor = GroupMember(
-            id: UUID(),
+            id: row.authorId,
             name: row.author?.displayName ?? "Necunoscut",
             avatarColor: authorColor,
             coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0),
@@ -207,9 +207,12 @@ private extension BlogPost {
             lastSeen: Date(),
             battery: 0
         )
-        let photoURLs = row.photos
+        let photos = row.photos
             .sorted { $0.orderIndex < $1.orderIndex }
-            .compactMap { try? supabase.storage.from("blog-photos").getPublicURL(path: $0.storagePath) }
+            .compactMap { photoRow -> BlogPhoto? in
+                guard let url = try? supabase.storage.from("blog-photos").getPublicURL(path: photoRow.storagePath) else { return nil }
+                return BlogPhoto(id: photoRow.id, url: url, storagePath: photoRow.storagePath)
+            }
         self.init(
             id: row.id,
             author: dummyAuthor,
@@ -218,7 +221,7 @@ private extension BlogPost {
             date: row.createdAt,
             poi: row.poi.map { PointOfInterest(from: $0) },
             headerColors: gradientPalettes[colorIndex % gradientPalettes.count],
-            photos: photoURLs
+            photos: photos
         )
     }
 }

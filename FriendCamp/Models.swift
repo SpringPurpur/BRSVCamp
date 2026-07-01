@@ -57,6 +57,12 @@ struct PointOfInterest: Identifiable {
 
 // MARK: - Blog
 
+struct BlogPhoto: Identifiable, Hashable {
+    let id: UUID
+    let url: URL
+    let storagePath: String
+}
+
 struct BlogPost: Identifiable {
     let id: UUID
     let author: GroupMember
@@ -65,10 +71,13 @@ struct BlogPost: Identifiable {
     let date: Date
     let poi: PointOfInterest?
     let headerColors: [Color]
-    let photos: [URL]
+    let photos: [BlogPhoto]
+
+    // Maxim de poze pe o postare — impus doar client-side (UX), nu e o constrângere în DB.
+    static let maxPhotos = 5
 
     init(id: UUID = UUID(), author: GroupMember, title: String, content: String,
-         date: Date, poi: PointOfInterest?, headerColors: [Color], photos: [URL] = []) {
+         date: Date, poi: PointOfInterest?, headerColors: [Color], photos: [BlogPhoto] = []) {
         self.id = id; self.author = author; self.title = title; self.content = content
         self.date = date; self.poi = poi; self.headerColors = headerColors; self.photos = photos
     }

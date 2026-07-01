@@ -89,6 +89,7 @@ struct POIRow: Codable {
 struct BlogPostRecord: Codable {
     let id: UUID
     let groupId: UUID
+    let authorId: UUID
     let title: String
     let content: String
     let createdAt: Date
@@ -99,6 +100,7 @@ struct BlogPostRecord: Codable {
     enum CodingKeys: String, CodingKey {
         case id
         case groupId   = "group_id"
+        case authorId  = "author_id"
         case title, content
         case createdAt = "created_at"
         case author    = "profiles"
