@@ -153,6 +153,8 @@ create table expenses (
   category    expense_category not null default 'other',
   description text not null,
   receipt_url text,
+  edit_count  integer not null default 0,
+  updated_at  timestamptz,
   date        date not null default current_date,
   created_at  timestamptz not null default now()
 );
@@ -167,6 +169,16 @@ create table expense_splits (
   unique (expense_id, user_id)
 );
 ```
+
+> `receipt_url` stochează path-ul relativ la bucket-ul privat `receipts` (`{user_id}/{expense_id}.jpg`), nu un URL — bucket-ul e privat, deci orice URL ar expira; aplicația Swift generează un signed URL la fiecare încărcare (`createSignedURL`, valabil 1 oră).
+> `edit_count`/`updated_at` sunt setate exclusiv de un trigger (secțiunea 3), niciodată direct din client — tamper-proof.
+
+> **Migrare pe un proiect deja creat**:
+> ```sql
+> alter table expenses
+>   add column if not exists edit_count integer not null default 0,
+>   add column if not exists updated_at timestamptz;
+> ```
 
 ---
 
@@ -223,6 +235,26 @@ create trigger on_auth_user_created
 ```
 
 > Aplicația Swift trimite `privacy_consent_at` în metadata la `signUp` doar dacă utilizatorul a bifat consimțământul (vezi `AuthService.signUp` și `AuthView`). Dacă lipsește din metadata, coloana rămâne `null`.
+
+### `handle_expense_edit` — incrementează edit_count la fiecare editare de cheltuială
+
+```sql
+create or replace function handle_expense_edit()
+returns trigger
+language plpgsql as $$
+begin
+  new.edit_count := old.edit_count + 1;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+create trigger on_expense_updated
+  before update on expenses
+  for each row execute function handle_expense_edit();
+```
+
+> `edit_count`/`updated_at` sunt setate exclusiv de acest trigger — clientul Swift nu le trimite niciodată în payload-ul de update, așa că nu pot fi falsificate din aplicație.
 
 ### `delete_user_account` — ștergere definitivă cont (apelat din Setări → Confidențialitate)
 
@@ -527,6 +559,16 @@ create policy "expenses_delete" on expenses
         and user_id  = auth.uid() and role = 'admin'
     )
   );
+
+create policy "expenses_update" on expenses
+  for update to authenticated using (
+    paid_by = auth.uid()
+    or exists (
+      select 1 from group_members
+      where group_id = expenses.group_id
+        and user_id  = auth.uid() and role = 'admin'
+    )
+  );
 ```
 
 ### expense_splits
@@ -540,12 +582,38 @@ create policy "splits_select" on expense_splits
     )
   );
 
--- Inserarea spliturilor se face o dată cu cheltuiala, de către cel care plătește
+-- Inserarea spliturilor se face o dată cu cheltuiala (sau la editare, care le reface de la
+-- zero) — de către plătitor sau un admin al grupului
 create policy "splits_insert" on expense_splits
   for insert to authenticated with check (
     exists (
       select 1 from expenses e
-      where e.id = expense_id and e.paid_by = auth.uid()
+      where e.id = expense_id
+        and (
+          e.paid_by = auth.uid()
+          or exists (
+            select 1 from group_members gm
+            where gm.group_id = e.group_id
+              and gm.user_id = auth.uid() and gm.role = 'admin'
+          )
+        )
+    )
+  );
+
+-- Necesară pentru editare (se șterg spliturile vechi înainte de a insera cele noi)
+create policy "splits_delete" on expense_splits
+  for delete to authenticated using (
+    exists (
+      select 1 from expenses e
+      where e.id = expense_id
+        and (
+          e.paid_by = auth.uid()
+          or exists (
+            select 1 from group_members gm
+            where gm.group_id = e.group_id
+              and gm.user_id = auth.uid() and gm.role = 'admin'
+          )
+        )
     )
   );
 
@@ -553,6 +621,54 @@ create policy "splits_insert" on expense_splits
 create policy "splits_update_settled" on expense_splits
   for update to authenticated using (user_id = auth.uid());
 ```
+
+> `splits_insert` a fost lărgit cu excepția de admin — inițial verifica doar `e.paid_by = auth.uid()`, ceea ce ar fi blocat un admin care editează cheltuiala altcuiva (fluxul de editare șterge spliturile vechi și inserează altele noi).
+
+> **Migrare pe un proiect deja creat**:
+> ```sql
+> create policy "expenses_update" on expenses
+>   for update to authenticated using (
+>     paid_by = auth.uid()
+>     or exists (
+>       select 1 from group_members
+>       where group_id = expenses.group_id
+>         and user_id  = auth.uid() and role = 'admin'
+>     )
+>   );
+>
+> create policy "splits_delete" on expense_splits
+>   for delete to authenticated using (
+>     exists (
+>       select 1 from expenses e
+>       where e.id = expense_id
+>         and (
+>           e.paid_by = auth.uid()
+>           or exists (
+>             select 1 from group_members gm
+>             where gm.group_id = e.group_id
+>               and gm.user_id = auth.uid() and gm.role = 'admin'
+>           )
+>         )
+>     )
+>   );
+>
+> drop policy if exists "splits_insert" on expense_splits;
+> create policy "splits_insert" on expense_splits
+>   for insert to authenticated with check (
+>     exists (
+>       select 1 from expenses e
+>       where e.id = expense_id
+>         and (
+>           e.paid_by = auth.uid()
+>           or exists (
+>             select 1 from group_members gm
+>             where gm.group_id = e.group_id
+>               and gm.user_id = auth.uid() and gm.role = 'admin'
+>           )
+>         )
+>     )
+>   );
+> ```
 
 ### `group_member_status` — view combinat, folosit de hartă și de lista de membri
 
