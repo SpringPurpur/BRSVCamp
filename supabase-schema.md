@@ -85,10 +85,6 @@ create table user_locations (
 ### `points_of_interest`
 
 ```sql
-create type poi_category as enum (
-  'restaurant', 'viewpoint', 'camp', 'activity', 'other'
-);
-
 create table points_of_interest (
   id          uuid primary key default gen_random_uuid(),
   group_id    uuid not null references groups on delete cascade,
@@ -97,11 +93,23 @@ create table points_of_interest (
   description text,
   latitude    float8 not null,
   longitude   float8 not null,
-  category    poi_category not null default 'other',
+  category    text not null default 'Altele',
   photo_url   text,
+  pin_color   text,
   created_at  timestamptz not null default now()
 );
 ```
+
+> `category` e text liber (nu enum) — userul scrie orice, cu un placeholder gri ca sugestie în UI. Fallback "Altele" dacă rămâne gol.
+> `pin_color` — hex ales din `ColorPicker` (ex. `#3B82F6`), `null` dacă userul n-a ales explicit una. Aplicația Swift cade pe gri (`PointOfInterest.defaultPinColor`) când e `null`.
+
+> **Migrare pe un proiect deja creat cu `poi_category` enum sau fără `pin_color`**:
+> ```sql
+> alter table points_of_interest alter column category type text;
+> alter table points_of_interest alter column category set default 'Altele';
+> drop type if exists poi_category;
+> alter table points_of_interest add column if not exists pin_color text;
+> ```
 
 ---
 
@@ -401,6 +409,16 @@ create policy "poi_delete" on points_of_interest
         and user_id  = auth.uid() and role = 'admin'
     )
   );
+
+create policy "poi_update" on points_of_interest
+  for update to authenticated using (
+    created_by = auth.uid()
+    or exists (
+      select 1 from group_members
+      where group_id = points_of_interest.group_id
+        and user_id  = auth.uid() and role = 'admin'
+    )
+  );
 ```
 
 ### blog_posts
@@ -506,7 +524,7 @@ create policy "splits_update_settled" on expense_splits
 ### `group_member_status` — view combinat, folosit de hartă și de lista de membri
 
 ```sql
-create view group_member_status
+create or replace view group_member_status
   with (security_invoker = true) as
 select
   gm.group_id,
@@ -516,7 +534,7 @@ select
   ul.latitude,
   ul.longitude,
   ul.battery_level,
-  ul.is_online,
+  (ul.updated_at is not null and ul.updated_at > now() - interval '2 minutes') as is_online,
   ul.updated_at
 from group_members gm
 join profiles p
@@ -527,6 +545,7 @@ left join user_locations ul
 
 > `security_invoker = true` (Postgres 15+) — view-ul respectă RLS-ul tabelelor de bază în funcție de utilizatorul care interoghează, nu de proprietarul view-ului. Practic, un user vede doar membrii grupurilor din care face parte, exact ca la interogarea directă a `group_members`.
 > `left join` pe `user_locations` — un membru nou, care nu a trimis încă nicio locație, tot apare în listă (cu `latitude`/`longitude`/`battery_level`/`is_online` = `null`).
+> `is_online` e calculat din recența lui `updated_at` (prag de 2 minute), nu citit direct din coloana `user_locations.is_online` — coloana stocată rămâne `true` odată setată și nu mai reflectă starea reală după ce userul iese din aplicație. Aplicația Swift trimite un heartbeat la fiecare 20s cât timp harta e vizibilă (vezi `MapView.uploadHeartbeat()`), deci pragul de 2 minute tolerează câteva heartbeat-uri ratate fără să arate fals „offline”.
 > Apelat din Swift: `supabase.from("group_member_status").select().eq("group_id", value: groupId)`
 
 ---
@@ -565,34 +584,54 @@ alter publication supabase_realtime add table user_locations;
 Bucketele sunt **publice** — SELECT nu necesită policy (oricine poate citi).
 Adaugi doar 2 policies pentru write, identic pentru ambele bucket-uri.
 
-**Storage → poi-photos → Policies → New policy → Get started quickly →
-"Give users access to a folder only to authenticated users"**
+Aplicația scrie fișierele la path-uri de forma `{group_id}/{poiId}.jpg` (POI) și
+`{group_id}/{postId}/{index}.jpg` (blog) — primul segment din path e mereu `group_id`.
+Policy-urile de mai jos verifică, pe lângă `bucket_id`, că userul autentificat chiar
+face parte din acel grup (`is_group_member`, aceeași funcție folosită de restul RLS-ului),
+nu doar că e autentificat undeva — altfel orice cont nou creat prin sign-up public ar
+putea scrie/șterge poze în bucket-ul **oricărui** grup, nu doar al lui.
 
-Templateul pre-completează câmpurile. Ajustezi manual după cum urmează și dai **Review → Save**.
+```sql
+create policy "poi_photos_insert" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'poi-photos'
+    and is_group_member((storage.foldername(name))[1]::uuid)
+  );
 
-> ⚠️ Câmpul **Policy definition** primește întotdeauna doar expresia booleană — fără `CREATE POLICY`, fără `USING`, fără paranteze exterioare.
+create policy "poi_photos_delete" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'poi-photos'
+    and is_group_member((storage.foldername(name))[1]::uuid)
+  );
 
----
+create policy "blog_photos_insert" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'blog-photos'
+    and is_group_member((storage.foldername(name))[1]::uuid)
+  );
 
-**Policy 1 — INSERT**
+create policy "blog_photos_delete" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'blog-photos'
+    and is_group_member((storage.foldername(name))[1]::uuid)
+  );
+```
 
-| Câmp | Valoare |
-|------|---------|
-| Policy name | `poi_photos_insert` *(pentru blog: `blog_photos_insert`)* |
-| Allowed operation | ☑ INSERT |
-| Target roles | `authenticated` |
-| Policy definition | `bucket_id = 'poi-photos'` *(pentru blog: `bucket_id = 'blog-photos'`)* |
+> `storage.foldername(name)` e un helper Supabase care întoarce path-ul unui obiect ca array de segmente — `[1]` e primul folder, adică `group_id`-ul.
+> Fără aceste policies, orice încercare de upload într-un bucket public eșuează cu `new row violates row-level security policy for table "objects"` — bucket-ul există, dar tabela internă `storage.objects` tot are RLS activ implicit.
 
----
-
-**Policy 2 — DELETE**
-
-| Câmp | Valoare |
-|------|---------|
-| Policy name | `poi_photos_delete` *(pentru blog: `blog_photos_delete`)* |
-| Allowed operation | ☑ DELETE |
-| Target roles | `authenticated` |
-| Policy definition | `bucket_id = 'poi-photos'` *(pentru blog: `bucket_id = 'blog-photos'`)* |
+> **Migrare pe un proiect deja creat cu policy-urile vechi (doar `bucket_id = '...'`, fără verificare de grup)**:
+> ```sql
+> drop policy if exists "poi_photos_insert" on storage.objects;
+> drop policy if exists "poi_photos_delete" on storage.objects;
+> drop policy if exists "blog_photos_insert" on storage.objects;
+> drop policy if exists "blog_photos_delete" on storage.objects;
+> -- apoi rulezi din nou cele 4 create policy de mai sus
+> ```
 
 ---
 
