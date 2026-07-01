@@ -146,6 +146,9 @@ struct ExpenseRecord: Codable {
     let category: String
     let description: String
     let date: Date
+    let receiptURL: String?
+    let editCount: Int
+    let updatedAt: Date?
     let paidByProfile: AuthorRef?
     let splits: [ExpenseSplitRow]
 
@@ -154,6 +157,9 @@ struct ExpenseRecord: Codable {
         case groupId      = "group_id"
         case paidById     = "paid_by"
         case amount, currency, category, description, date
+        case receiptURL   = "receipt_url"
+        case editCount    = "edit_count"
+        case updatedAt    = "updated_at"
         case paidByProfile = "paid_by_profile"
         case splits        = "expense_splits"
     }

@@ -103,12 +103,20 @@ final class GroupDataStore {
         do {
             let rows: [ExpenseRecord] = try await supabase
                 .from("expenses")
-                .select("id, group_id, paid_by, amount, currency, category, description, date, paid_by_profile:profiles!paid_by(display_name, avatar_color), expense_splits(id, user_id, amount, settled, member:profiles(display_name, avatar_color))")
+                .select("id, group_id, paid_by, amount, currency, category, description, date, receipt_url, edit_count, updated_at, paid_by_profile:profiles!paid_by(display_name, avatar_color), expense_splits(id, user_id, amount, settled, member:profiles(display_name, avatar_color))")
                 .eq("group_id", value: groupId.uuidString)
                 .order("date", ascending: false)
                 .execute()
                 .value
-            let mapped = rows.map { Expense(from: $0) }
+            // receipts e bucket privat — nu are getPublicURL sincron, trebuie un signed URL per rând.
+            var mapped: [Expense] = []
+            for row in rows {
+                var signedURL: URL?
+                if let path = row.receiptURL {
+                    signedURL = try? await supabase.storage.from("receipts").createSignedURL(path: path, expiresIn: 3600)
+                }
+                mapped.append(Expense(from: row, receiptURL: signedURL))
+            }
             await MainActor.run { expenses = mapped }
         } catch { }
     }
@@ -227,7 +235,7 @@ private extension BlogPost {
 }
 
 private extension Expense {
-    init(from row: ExpenseRecord) {
+    init(from row: ExpenseRecord, receiptURL: URL?) {
         let payerColor = Color(hex: row.paidByProfile?.avatarColor ?? "#3B82F6")
         let payer = GroupMember(
             id: row.paidById,
@@ -245,7 +253,10 @@ private extension Expense {
             category: ExpenseCategory(dbValue: row.category),
             description: row.description,
             date: row.date,
-            splits: splits
+            splits: splits,
+            receiptURL: receiptURL,
+            editCount: row.editCount,
+            lastEditedAt: row.updatedAt
         )
     }
 }
@@ -272,6 +283,19 @@ private extension ExpenseCategory {
         case "accommodation": self = .accommodation
         case "activities":    self = .activities
         default:              self = .other
+        }
+    }
+}
+
+// Nu e private — folosită și din ExpenseCreateSheet la insert/update.
+extension ExpenseCategory {
+    var dbValue: String {
+        switch self {
+        case .food:          return "food"
+        case .transport:     return "transport"
+        case .accommodation: return "accommodation"
+        case .activities:    return "activities"
+        case .other:         return "other"
         }
     }
 }

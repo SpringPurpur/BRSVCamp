@@ -94,11 +94,16 @@ struct Expense: Identifiable {
     let description: String
     let date: Date
     var splits: [ExpenseSplit]
+    let receiptURL: URL?
+    let editCount: Int
+    let lastEditedAt: Date?
 
     init(id: UUID = UUID(), paidBy: GroupMember, amount: Double, currency: String,
-         category: ExpenseCategory, description: String, date: Date, splits: [ExpenseSplit]) {
+         category: ExpenseCategory, description: String, date: Date, splits: [ExpenseSplit],
+         receiptURL: URL? = nil, editCount: Int = 0, lastEditedAt: Date? = nil) {
         self.id = id; self.paidBy = paidBy; self.amount = amount; self.currency = currency
         self.category = category; self.description = description; self.date = date; self.splits = splits
+        self.receiptURL = receiptURL; self.editCount = editCount; self.lastEditedAt = lastEditedAt
     }
 }
 

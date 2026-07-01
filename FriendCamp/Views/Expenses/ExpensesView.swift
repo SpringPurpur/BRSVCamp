@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 // MARK: - ExpensesView
 
@@ -6,6 +7,7 @@ struct ExpensesView: View {
     @Environment(GroupDataStore.self) private var dataStore
     @Environment(AuthService.self)    private var auth
     @State private var selectedExpense: Expense?
+    @State private var showCreateSheet = false
 
     private var expenses: [Expense] { dataStore.expenses }
     private var currentUserId: UUID? { auth.currentUserId }
@@ -61,7 +63,7 @@ struct ExpensesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        // TODO: add expense / scan receipt
+                        showCreateSheet = true
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)
@@ -72,6 +74,9 @@ struct ExpensesView: View {
         }
         .sheet(item: $selectedExpense) { expense in
             ExpenseDetailSheet(expense: expense, currentUserId: currentUserId)
+        }
+        .sheet(isPresented: $showCreateSheet) {
+            ExpenseCreateSheet { showCreateSheet = false }
         }
     }
 }
@@ -212,6 +217,22 @@ struct ExpenseDetailSheet: View {
     let expense: Expense
     let currentUserId: UUID?
     @Environment(\.dismiss) private var dismiss
+    @Environment(GroupDataStore.self) private var dataStore
+    @Environment(GroupService.self)   private var groupService
+
+    @State private var showEditSheet = false
+    @State private var showDeleteConfirm = false
+    @State private var showFullscreenPhoto = false
+    @State private var isDeleting = false
+    @State private var isSettling = false
+
+    private var canManage: Bool {
+        expense.paidBy.id == currentUserId || groupService.currentUserRole == "admin"
+    }
+
+    private var mySplit: ExpenseSplit? {
+        expense.splits.first { $0.member.id == currentUserId }
+    }
 
     var body: some View {
         NavigationStack {
@@ -237,6 +258,31 @@ struct ExpenseDetailSheet: View {
 
                         Text(expense.amount, format: .currency(code: expense.currency))
                             .font(.title2.bold())
+                    }
+
+                    if expense.editCount > 0 {
+                        Text("Editat de \(expense.editCount) ori" + (expense.lastEditedAt.map {
+                            " · ultima oară \($0.formatted(.relative(presentation: .named)))"
+                        } ?? ""))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let receiptURL = expense.receiptURL {
+                        AsyncImage(url: receiptURL) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Color.gray.opacity(0.15)
+                        }
+                        .frame(height: 180)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipped()
+                        .contentShape(Rectangle())
+                        .onTapGesture { showFullscreenPhoto = true }
+                        .fullScreenCover(isPresented: $showFullscreenPhoto) {
+                            FullScreenImageViewer(url: receiptURL)
+                        }
                     }
 
                     Divider()
@@ -272,17 +318,83 @@ struct ExpenseDetailSheet: View {
                             }
                         }
                     }
+
+                    if let mySplit, !mySplit.settled {
+                        Button {
+                            Task { await markMySplitSettled(splitId: mySplit.id) }
+                        } label: {
+                            Label("Marchează partea mea ca achitată", systemImage: "checkmark.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isSettling)
+                    }
                 }
                 .padding(20)
             }
             .navigationTitle("")
             .toolbar {
+                if canManage {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Menu {
+                            Button("Editează", systemImage: "pencil") { showEditSheet = true }
+                            Button("Șterge", systemImage: "trash", role: .destructive) {
+                                showDeleteConfirm = true
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Închide") { dismiss() }
                 }
             }
+            .confirmationDialog("Ștergi această cheltuială?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("Șterge", role: .destructive) { Task { await deleteExpense() } }
+                Button("Anulează", role: .cancel) {}
+            }
+            .sheet(isPresented: $showEditSheet) {
+                ExpenseCreateSheet(editing: expense) {
+                    showEditSheet = false
+                    dismiss()
+                }
+            }
+            .disabled(isDeleting)
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    private func markMySplitSettled(splitId: UUID) async {
+        isSettling = true
+        struct SettleSplit: Encodable {
+            let settled: Bool
+            let settled_at: String
+        }
+        let payload = SettleSplit(settled: true, settled_at: ISO8601DateFormatter().string(from: Date()))
+        _ = try? await supabase.from("expense_splits")
+            .update(payload)
+            .eq("id", value: splitId.uuidString)
+            .execute()
+        if let groupId = groupService.currentGroup?.id {
+            await dataStore.loadExpenses(groupId: groupId)
+        }
+        isSettling = false
+    }
+
+    private func deleteExpense() async {
+        guard let groupId = groupService.currentGroup?.id else { return }
+        isDeleting = true
+        if expense.receiptURL != nil {
+            let path = "\(expense.paidBy.id.uuidString)/\(expense.id.uuidString).jpg"
+            _ = try? await supabase.storage.from("receipts").remove(paths: [path])
+        }
+        _ = try? await supabase.from("expenses")
+            .delete()
+            .eq("id", value: expense.id.uuidString)
+            .execute()
+        await dataStore.loadExpenses(groupId: groupId)
+        dismiss()
     }
 }
