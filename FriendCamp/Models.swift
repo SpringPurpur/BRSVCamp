@@ -30,43 +30,28 @@ struct PointOfInterest: Identifiable {
     let title: String
     let description: String
     let coordinate: CLLocationCoordinate2D
-    let category: POICategory
+    let category: String
     let createdBy: String
+    let createdById: UUID
     let date: Date
+    let photoURL: URL?
+    let pinColor: Color?
+
+    // Iconiță unică pentru toate POI-urile — categoria e text liber, nu mai poate fi
+    // mapată automat la o iconiță specifică. Culoarea rămâne personalizabilă (pinColor).
+    static let pinIcon = "mappin.circle.fill"
+    static let defaultPinColor = Color.gray
+
+    // Folosită peste tot în UI în loc de pinColor direct, ca fallback-ul să fie într-un singur loc.
+    var displayColor: Color { pinColor ?? PointOfInterest.defaultPinColor }
 
     init(id: UUID = UUID(), title: String, description: String, coordinate: CLLocationCoordinate2D,
-         category: POICategory, createdBy: String, date: Date) {
+         category: String, createdBy: String, createdById: UUID = UUID(), date: Date,
+         photoURL: URL? = nil, pinColor: Color? = nil) {
         self.id = id; self.title = title; self.description = description
         self.coordinate = coordinate; self.category = category
-        self.createdBy = createdBy; self.date = date
-    }
-}
-
-enum POICategory: String, CaseIterable {
-    case restaurant = "Restaurant"
-    case viewpoint = "Belvedere"
-    case camp = "Tabără"
-    case activity = "Activitate"
-    case other = "Altele"
-
-    var systemImage: String {
-        switch self {
-        case .restaurant:   return "fork.knife"
-        case .viewpoint:    return "mountain.2.fill"
-        case .camp:         return "tent.fill"
-        case .activity:     return "figure.hiking"
-        case .other:        return "mappin.circle.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .restaurant:   return .orange
-        case .viewpoint:    return .blue
-        case .camp:         return .green
-        case .activity:     return .purple
-        case .other:        return .gray
-        }
+        self.createdBy = createdBy; self.createdById = createdById
+        self.date = date; self.photoURL = photoURL; self.pinColor = pinColor
     }
 }
 
@@ -80,11 +65,12 @@ struct BlogPost: Identifiable {
     let date: Date
     let poi: PointOfInterest?
     let headerColors: [Color]
+    let photos: [URL]
 
     init(id: UUID = UUID(), author: GroupMember, title: String, content: String,
-         date: Date, poi: PointOfInterest?, headerColors: [Color]) {
+         date: Date, poi: PointOfInterest?, headerColors: [Color], photos: [URL] = []) {
         self.id = id; self.author = author; self.title = title; self.content = content
-        self.date = date; self.poi = poi; self.headerColors = headerColors
+        self.date = date; self.poi = poi; self.headerColors = headerColors; self.photos = photos
     }
 }
 
@@ -181,21 +167,21 @@ enum MockData {
             title: "Cascada Vălul Miresei",
             description: "Cascadă superbă, 15 min de mers pe jos de la parcare. Merită tot drumul!",
             coordinate: CLLocationCoordinate2D(latitude: 45.9440, longitude: 24.9660),
-            category: .viewpoint, createdBy: "Vlad",
+            category: "Belvedere", createdBy: "Vlad",
             date: Calendar.current.date(byAdding: .hour, value: -2, to: Date())!
         ),
         PointOfInterest(
             title: "Restaurant Vânătorul",
             description: "Mâncare tradițională excelentă, prețuri ok. Ciorbă de vănat recomandată.",
             coordinate: CLLocationCoordinate2D(latitude: 45.9425, longitude: 24.9690),
-            category: .restaurant, createdBy: "Ana",
+            category: "Restaurant", createdBy: "Ana",
             date: Calendar.current.date(byAdding: .day, value: -1, to: Date())!
         ),
         PointOfInterest(
             title: "Tabăra de noapte",
             description: "Loc bun pentru cort, aproape de izvor. Apă rece și curată.",
             coordinate: CLLocationCoordinate2D(latitude: 45.9455, longitude: 24.9640),
-            category: .camp, createdBy: "Mihai",
+            category: "Tabără", createdBy: "Mihai",
             date: Calendar.current.date(byAdding: .hour, value: -5, to: Date())!
         ),
     ]

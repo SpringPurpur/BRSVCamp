@@ -21,10 +21,12 @@ struct GroupRow: Codable, Identifiable {
 
 struct GroupMembershipRow: Codable {
     let groupId: UUID
+    let role: String
     let group: GroupRow
 
     enum CodingKeys: String, CodingKey {
         case groupId = "group_id"
+        case role
         case group   = "groups"
     }
 }
@@ -65,7 +67,9 @@ struct POIRow: Codable {
     let longitude: Double
     let category: String
     let photoURL: String?
+    let pinColor: String?
     let createdAt: Date
+    let createdBy: UUID
     let author: AuthorRef?
 
     enum CodingKeys: String, CodingKey {
@@ -73,7 +77,9 @@ struct POIRow: Codable {
         case groupId     = "group_id"
         case title, description, latitude, longitude, category
         case photoURL    = "photo_url"
+        case pinColor    = "pin_color"
         case createdAt   = "created_at"
+        case createdBy   = "created_by"
         case author      = "profiles"
     }
 }
@@ -87,6 +93,8 @@ struct BlogPostRecord: Codable {
     let content: String
     let createdAt: Date
     let author: AuthorRef?
+    let poi: POIRefRow?
+    let photos: [BlogPostPhotoRow]
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -94,6 +102,34 @@ struct BlogPostRecord: Codable {
         case title, content
         case createdAt = "created_at"
         case author    = "profiles"
+        case poi       = "points_of_interest"
+        case photos    = "blog_post_photos"
+    }
+}
+
+struct POIRefRow: Codable {
+    let id: UUID
+    let title: String
+    let category: String
+    let latitude: Double
+    let longitude: Double
+    let pinColor: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, category, latitude, longitude
+        case pinColor = "pin_color"
+    }
+}
+
+struct BlogPostPhotoRow: Codable {
+    let id: UUID
+    let storagePath: String
+    let orderIndex: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case storagePath = "storage_path"
+        case orderIndex  = "order_index"
     }
 }
 

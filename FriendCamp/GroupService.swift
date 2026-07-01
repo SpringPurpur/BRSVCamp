@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class GroupService {
     var currentGroup: GroupRow?
+    var currentUserRole: String?
     var isLoading = false
     var hasChecked = false
     var error: String?
@@ -14,12 +15,15 @@ final class GroupService {
         do {
             let rows: [GroupMembershipRow] = try await supabase
                 .from("group_members")
-                .select("group_id, groups(*)")
+                .select("group_id, role, groups(*)")
                 .eq("user_id", value: userId.uuidString)
                 .limit(1)
                 .execute()
                 .value
-            await MainActor.run { currentGroup = rows.first?.group }
+            await MainActor.run {
+                currentGroup = rows.first?.group
+                currentUserRole = rows.first?.role
+            }
         } catch {
             await MainActor.run { self.error = error.localizedDescription }
         }
@@ -33,7 +37,7 @@ final class GroupService {
                 .rpc("create_group", params: ["p_name": name])
                 .execute()
                 .value
-            await MainActor.run { currentGroup = group }
+            await MainActor.run { currentGroup = group; currentUserRole = "admin" }
         } catch {
             await MainActor.run { self.error = error.localizedDescription }
         }
@@ -54,7 +58,7 @@ final class GroupService {
                 .single()
                 .execute()
                 .value
-            await MainActor.run { currentGroup = group }
+            await MainActor.run { currentGroup = group; currentUserRole = "member" }
         } catch {
             await MainActor.run { self.error = error.localizedDescription }
         }
@@ -63,6 +67,7 @@ final class GroupService {
 
     func reset() {
         currentGroup = nil
+        currentUserRole = nil
         hasChecked = false
         error = nil
     }

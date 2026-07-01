@@ -4,6 +4,7 @@ import SwiftUI
 
 struct BlogView: View {
     @Environment(GroupDataStore.self) private var dataStore
+    @State private var showCompose = false
     private var posts: [BlogPost] { dataStore.posts }
 
     var body: some View {
@@ -23,12 +24,15 @@ struct BlogView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        // TODO: new post
+                        showCompose = true
                     } label: {
                         Image(systemName: "square.and.pencil")
                             .font(.title3)
                     }
                 }
+            }
+            .sheet(isPresented: $showCompose) {
+                BlogComposeSheet { showCompose = false }
             }
         }
     }
@@ -41,13 +45,25 @@ struct BlogPostRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header gradient (placeholder pentru foto)
-            LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+            // Header: prima poză dacă există, altfel gradient placeholder
+            Group {
+                if let firstPhoto = post.photos.first {
+                    AsyncImage(url: firstPhoto) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    }
+                } else {
+                    LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                }
+            }
                 .frame(height: 120)
+                .frame(maxWidth: .infinity)
+                .clipped()
                 .overlay(alignment: .bottomLeading) {
                     if let poi = post.poi {
                         HStack(spacing: 5) {
-                            Image(systemName: poi.category.systemImage)
+                            Image(systemName: PointOfInterest.pinIcon)
                                 .font(.caption)
                             Text(poi.title)
                                 .font(.caption.bold())
@@ -104,13 +120,28 @@ struct BlogPostRow: View {
 
 struct BlogPostDetailView: View {
     let post: BlogPost
+    @State private var fullscreenPhotoURL: URL?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // Header
-                LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                // Header: prima poză dacă există, altfel gradient placeholder
+                Group {
+                    if let firstPhoto = post.photos.first {
+                        AsyncImage(url: firstPhoto) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture { fullscreenPhotoURL = firstPhoto }
+                    } else {
+                        LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    }
+                }
                     .frame(height: 220)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
                     .ignoresSafeArea(edges: .top)
 
                 VStack(alignment: .leading, spacing: 16) {
@@ -139,22 +170,41 @@ struct BlogPostDetailView: View {
 
                     if let poi = post.poi {
                         HStack(spacing: 6) {
-                            Image(systemName: poi.category.systemImage)
+                            Image(systemName: PointOfInterest.pinIcon)
                                 .font(.caption)
-                                .foregroundStyle(poi.category.color)
+                                .foregroundStyle(poi.displayColor)
                             Text(poi.title)
                                 .font(.caption.bold())
-                                .foregroundStyle(poi.category.color)
+                                .foregroundStyle(poi.displayColor)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(poi.category.color.opacity(0.1), in: Capsule())
+                        .background(poi.displayColor.opacity(0.1), in: Capsule())
                     }
 
                     Text(post.content)
                         .font(.body)
                         .foregroundStyle(.primary)
                         .lineSpacing(5)
+
+                    if post.photos.count > 1 {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(post.photos.dropFirst(), id: \.self) { url in
+                                    AsyncImage(url: url) { image in
+                                        image.resizable().scaledToFill()
+                                    } placeholder: {
+                                        Color.gray.opacity(0.15)
+                                    }
+                                    .frame(width: 120, height: 120)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .clipped()
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { fullscreenPhotoURL = url }
+                                }
+                            }
+                        }
+                    }
                 }
                 .padding(20)
             }
@@ -162,5 +212,13 @@ struct BlogPostDetailView: View {
         .navigationTitle(post.title)
         .navigationBarTitleDisplayMode(.inline)
         .ignoresSafeArea(edges: .top)
+        .fullScreenCover(isPresented: Binding(
+            get: { fullscreenPhotoURL != nil },
+            set: { if !$0 { fullscreenPhotoURL = nil } }
+        )) {
+            if let url = fullscreenPhotoURL {
+                FullScreenImageViewer(url: url)
+            }
+        }
     }
 }

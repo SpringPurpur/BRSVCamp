@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import Observation
+import Supabase
 
 // MARK: - ViewModel (UI state only — date reale vin din GroupDataStore)
 
@@ -14,6 +15,9 @@ final class MapViewModel {
             span: MKCoordinateSpan(latitudeDelta: 0.018, longitudeDelta: 0.018)
         )
     )
+    // Plasare POI: userul apasă +, apoi atinge harta pentru a alege poziția
+    var isPlacingPOI = false
+    var pendingPOICoordinate: CLLocationCoordinate2D?
 }
 
 // MARK: - MapView
@@ -27,12 +31,14 @@ struct MapView: View {
     @State private var vm = MapViewModel()
     @State private var locationService = LocationService()
     @State private var hasCenteredOnUser = false
+    // Urmărit continuu cât timp harta e vizibilă, ca la activarea modului de plasare
+    // să existe deja o coordonată validă fără să aștepte primul eveniment de cameră.
+    @State private var mapCenterCoordinate = CLLocationCoordinate2D(latitude: 45.9440, longitude: 24.9675)
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 Map(position: $vm.cameraPosition) {
-                    UserAnnotation()
                     ForEach(dataStore.members) { member in
                         Annotation(member.name, coordinate: member.coordinate, anchor: .bottom) {
                             MemberMapPin(member: member)
@@ -47,6 +53,9 @@ struct MapView: View {
                     }
                 }
                 .mapStyle(.standard(elevation: .realistic))
+                .onMapCameraChange(frequency: .continuous) { context in
+                    mapCenterCoordinate = context.region.center
+                }
                 .ignoresSafeArea(edges: .top)
                 .onAppear { locationService.requestPermission() }
                 .onChange(of: locationService.hasLocation) { _, hasLocation in
@@ -60,20 +69,32 @@ struct MapView: View {
                         ))
                     }
                 }
-                .onChange(of: locationService.userLocation) { _, coord in
-                    guard let coord,
-                          prefs.preferences.shareLocation,
-                          let userId = auth.currentUserId,
-                          let groupId = groupService.currentGroup?.id else { return }
-                    UIDevice.current.isBatteryMonitoringEnabled = true
-                    let battery = UIDevice.current.batteryLevel
-                    let batteryPct = battery >= 0 ? Int(battery * 100) : nil
-                    Task { await dataStore.uploadLocation(userId: userId, groupId: groupId,
-                                                          coordinate: coord, batteryPercent: batteryPct) }
+                .onChange(of: locationService.userLocation) { _, _ in
+                    Task { await uploadHeartbeat() }
                 }
 
-                MemberStatusBar(members: dataStore.members) { member in
-                    vm.selectedMember = member
+                if vm.isPlacingPOI {
+                    Image(systemName: PointOfInterest.pinIcon)
+                        .font(.system(size: 40))
+                        .foregroundStyle(PointOfInterest.defaultPinColor)
+                        .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
+                        .allowsHitTesting(false)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .offset(y: -20)
+
+                    PlacingPOIConfirmBar(
+                        onCancel: { vm.isPlacingPOI = false },
+                        onConfirm: {
+                            vm.pendingPOICoordinate = mapCenterCoordinate
+                            vm.isPlacingPOI = false
+                        }
+                    )
+                    .padding(.bottom, 12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                } else {
+                    MemberStatusBar(members: dataStore.members) { member in
+                        vm.selectedMember = member
+                    }
                 }
             }
             .navigationTitle("FriendCamp")
@@ -97,19 +118,33 @@ struct MapView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        // TODO: add POI
+                        vm.isPlacingPOI.toggle()
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)
                             .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(vm.isPlacingPOI ? Color.orange : Color.accentColor)
                     }
                 }
             }
         }
-        // Polling membri la fiecare 15s cât timp harta e vizibilă
+        // Polling membri la fiecare 15s — fallback dacă Realtime pică (reconectare, background)
         .task(id: groupService.currentGroup?.id) {
             guard let groupId = groupService.currentGroup?.id else { return }
             await dataStore.pollMembers(groupId: groupId)
+        }
+        // Realtime — actualizează membrii aproape instant la orice update de locație
+        .task(id: groupService.currentGroup?.id) {
+            guard let groupId = groupService.currentGroup?.id else { return }
+            await dataStore.subscribeToLocationUpdates(groupId: groupId)
+        }
+        // Heartbeat: retrimite locația + bateria la fiecare 20s, chiar dacă userul stă pe loc,
+        // altfel is_online/bateria rămân înghețate la ultima valoare din momentul primului fix GPS.
+        .task(id: groupService.currentGroup?.id) {
+            while !Task.isCancelled {
+                await uploadHeartbeat()
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
+            }
         }
         .sheet(item: $vm.selectedMember) { member in
             MemberDetailSheet(member: member)
@@ -117,6 +152,26 @@ struct MapView: View {
         .sheet(item: $vm.selectedPOI) { poi in
             POIDetailSheet(poi: poi)
         }
+        .sheet(isPresented: Binding(
+            get: { vm.pendingPOICoordinate != nil },
+            set: { if !$0 { vm.pendingPOICoordinate = nil } }
+        )) {
+            if let coordinate = vm.pendingPOICoordinate {
+                POICreateSheet(coordinate: coordinate) { vm.pendingPOICoordinate = nil }
+            }
+        }
+    }
+
+    private func uploadHeartbeat() async {
+        guard let coord = locationService.userLocation,
+              prefs.preferences.shareLocation,
+              let userId = auth.currentUserId,
+              let groupId = groupService.currentGroup?.id else { return }
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        let battery = UIDevice.current.batteryLevel
+        let batteryPct = battery >= 0 ? Int(battery * 100) : nil
+        await dataStore.uploadLocation(userId: userId, groupId: groupId,
+                                        coordinate: coord, batteryPercent: batteryPct)
     }
 }
 
@@ -155,10 +210,29 @@ struct POIMapPin: View {
                 .fill(Color(UIColor.systemBackground))
                 .frame(width: 38, height: 38)
                 .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-            Image(systemName: poi.category.systemImage)
+            Image(systemName: PointOfInterest.pinIcon)
                 .font(.system(size: 17))
-                .foregroundStyle(poi.category.color)
+                .foregroundStyle(poi.displayColor)
         }
+    }
+}
+
+struct PlacingPOIConfirmBar: View {
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button("Anulează", role: .cancel, action: onCancel)
+                .buttonStyle(.bordered)
+            Button("Confirmă", action: onConfirm)
+                .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .shadow(color: .black.opacity(0.1), radius: 6, y: 2)
+        .padding(.horizontal)
     }
 }
 
@@ -313,23 +387,52 @@ struct MemberDetailSheet: View {
 struct POIDetailSheet: View {
     let poi: PointOfInterest
     @Environment(\.dismiss) private var dismiss
+    @Environment(GroupDataStore.self) private var dataStore
+    @Environment(GroupService.self)   private var groupService
+    @Environment(AuthService.self)    private var auth
+
+    @State private var showEditSheet = false
+    @State private var showDeleteConfirm = false
+    @State private var showFullscreenPhoto = false
+    @State private var isDeleting = false
+
+    private var canManage: Bool {
+        poi.createdById == auth.currentUserId || groupService.currentUserRole == "admin"
+    }
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 10) {
-                    Image(systemName: poi.category.systemImage)
+                    Image(systemName: PointOfInterest.pinIcon)
                         .font(.title2)
-                        .foregroundStyle(poi.category.color)
+                        .foregroundStyle(poi.displayColor)
                         .frame(width: 44, height: 44)
-                        .background(poi.category.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                        .background(poi.displayColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(poi.category.rawValue)
+                        Text(poi.category)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(poi.title)
                             .font(.headline)
+                    }
+                }
+
+                if let photoURL = poi.photoURL {
+                    AsyncImage(url: photoURL) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.gray.opacity(0.15)
+                    }
+                    .frame(height: 180)
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipped()
+                    .contentShape(Rectangle())
+                    .onTapGesture { showFullscreenPhoto = true }
+                    .fullScreenCover(isPresented: $showFullscreenPhoto) {
+                        FullScreenImageViewer(url: photoURL)
                     }
                 }
 
@@ -356,13 +459,51 @@ struct POIDetailSheet: View {
             .padding()
             .navigationTitle("")
             .toolbar {
+                if canManage {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Menu {
+                            Button("Editează", systemImage: "pencil") { showEditSheet = true }
+                            Button("Șterge", systemImage: "trash", role: .destructive) {
+                                showDeleteConfirm = true
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Închide") { dismiss() }
                 }
             }
+            .confirmationDialog("Ștergi acest punct?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("Șterge", role: .destructive) { Task { await deletePOI() } }
+                Button("Anulează", role: .cancel) {}
+            }
+            .sheet(isPresented: $showEditSheet) {
+                POICreateSheet(editing: poi) {
+                    showEditSheet = false
+                    dismiss()
+                }
+            }
+            .disabled(isDeleting)
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
+    }
+
+    private func deletePOI() async {
+        guard let groupId = groupService.currentGroup?.id else { return }
+        isDeleting = true
+        if poi.photoURL != nil {
+            let path = "\(groupId.uuidString)/\(poi.id.uuidString).jpg"
+            _ = try? await supabase.storage.from("poi-photos").remove(paths: [path])
+        }
+        _ = try? await supabase.from("points_of_interest")
+            .delete()
+            .eq("id", value: poi.id.uuidString)
+            .execute()
+        await dataStore.loadPOIs(groupId: groupId)
+        dismiss()
     }
 }
 

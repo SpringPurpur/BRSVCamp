@@ -47,6 +47,24 @@ final class GroupDataStore {
         }
     }
 
+    // Actualizează membrii aproape instant la orice schimbare în user_locations,
+    // în loc să aștepte până la 15s pentru următorul poll (necesită ca tabela
+    // user_locations să fie adăugată la publicația supabase_realtime — vezi schema).
+    func subscribeToLocationUpdates(groupId: UUID) async {
+        let channel = supabase.channel("group-locations-\(groupId.uuidString)")
+        let changes = channel.postgresChange(
+            AnyAction.self,
+            schema: "public",
+            table: "user_locations",
+            filter: .eq("group_id", value: groupId.uuidString)
+        )
+        try? await channel.subscribeWithError()
+        for await _ in changes {
+            await loadMembers(groupId: groupId)
+        }
+        await supabase.removeChannel(channel)
+    }
+
     // MARK: - POIs
 
     func loadPOIs(groupId: UUID) async {
@@ -69,7 +87,7 @@ final class GroupDataStore {
         do {
             let rows: [BlogPostRecord] = try await supabase
                 .from("blog_posts")
-                .select("*, profiles(display_name, avatar_color)")
+                .select("*, profiles(display_name, avatar_color), points_of_interest(id, title, category, latitude, longitude, pin_color), blog_post_photos(id, storage_path, order_index)")
                 .eq("group_id", value: groupId.uuidString)
                 .order("created_at", ascending: false)
                 .execute()
@@ -99,12 +117,12 @@ final class GroupDataStore {
 
     func uploadLocation(userId: UUID, groupId: UUID,
                         coordinate: CLLocationCoordinate2D, batteryPercent: Int?) async {
+        // is_online nu se mai trimite — group_member_status îl calculează din recența updated_at
         var payload: [String: AnyJSON] = [
             "user_id":   .string(userId.uuidString),
             "group_id":  .string(groupId.uuidString),
             "latitude":  .double(coordinate.latitude),
             "longitude": .double(coordinate.longitude),
-            "is_online": .bool(true),
             "updated_at": .string(ISO8601DateFormatter().string(from: Date())),
         ]
         if let pct = batteryPercent {
@@ -147,22 +165,28 @@ private extension PointOfInterest {
             title: row.title,
             description: row.description ?? "",
             coordinate: CLLocationCoordinate2D(latitude: row.latitude, longitude: row.longitude),
-            category: POICategory(dbValue: row.category),
+            category: row.category,
             createdBy: row.author?.displayName ?? "Necunoscut",
-            date: row.createdAt
+            createdById: row.createdBy,
+            date: row.createdAt,
+            photoURL: row.photoURL.flatMap(URL.init(string:)),
+            pinColor: row.pinColor.map { Color(hex: $0) }
         )
     }
-}
 
-private extension POICategory {
-    init(dbValue: String) {
-        switch dbValue {
-        case "restaurant":   self = .restaurant
-        case "viewpoint":    self = .viewpoint
-        case "camp":         self = .camp
-        case "activity":     self = .activity
-        default:             self = .other
-        }
+    // Referință minimală, folosită doar pentru badge-ul POI din postările de blog
+    // (embed-ul points_of_interest din blog_posts nu include description/createdBy/date).
+    init(from ref: POIRefRow) {
+        self.init(
+            id: ref.id,
+            title: ref.title,
+            description: "",
+            coordinate: CLLocationCoordinate2D(latitude: ref.latitude, longitude: ref.longitude),
+            category: ref.category,
+            createdBy: "",
+            date: Date(),
+            pinColor: ref.pinColor.map { Color(hex: $0) }
+        )
     }
 }
 
@@ -183,14 +207,18 @@ private extension BlogPost {
             lastSeen: Date(),
             battery: 0
         )
+        let photoURLs = row.photos
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .compactMap { try? supabase.storage.from("blog-photos").getPublicURL(path: $0.storagePath) }
         self.init(
             id: row.id,
             author: dummyAuthor,
             title: row.title,
             content: row.content,
             date: row.createdAt,
-            poi: nil,
-            headerColors: gradientPalettes[colorIndex % gradientPalettes.count]
+            poi: row.poi.map { PointOfInterest(from: $0) },
+            headerColors: gradientPalettes[colorIndex % gradientPalettes.count],
+            photos: photoURLs
         )
     }
 }
