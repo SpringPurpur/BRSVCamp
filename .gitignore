@@ -1,5 +1,5 @@
 # Credentials — nu comite niciodată fișierul real
-FriendCamp/SupabaseConfig.swift
+FriendCamp/Services/SupabaseConfig.swift
 
 # Xcode
 *.xcuserstate

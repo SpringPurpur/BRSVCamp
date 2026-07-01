@@ -39,7 +39,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				SupabaseConfig.example.swift,
+				Services/SupabaseConfig.example.swift,
 			);
 			target = A15B0FFA2FE7FDD200009EA2 /* FriendCamp */;
 		};
