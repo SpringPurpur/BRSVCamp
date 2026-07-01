@@ -67,7 +67,7 @@ final class GroupDataStore {
 
     func loadPosts(groupId: UUID) async {
         do {
-            let rows: [BlogPostRow] = try await supabase
+            let rows: [BlogPostRecord] = try await supabase
                 .from("blog_posts")
                 .select("*, profiles(display_name, avatar_color)")
                 .eq("group_id", value: groupId.uuidString)
@@ -83,7 +83,7 @@ final class GroupDataStore {
 
     func loadExpenses(groupId: UUID) async {
         do {
-            let rows: [ExpenseRow] = try await supabase
+            let rows: [ExpenseRecord] = try await supabase
                 .from("expenses")
                 .select("id, group_id, paid_by, amount, currency, category, description, date, paid_by_profile:profiles!paid_by(display_name, avatar_color), expense_splits(id, user_id, amount, settled, member:profiles(display_name, avatar_color))")
                 .eq("group_id", value: groupId.uuidString)
@@ -172,7 +172,7 @@ private let gradientPalettes: [[Color]] = [
 ]
 
 private extension BlogPost {
-    init(from row: BlogPostRow, colorIndex: Int) {
+    init(from row: BlogPostRecord, colorIndex: Int) {
         let authorColor = Color(hex: row.author?.avatarColor ?? "#3B82F6")
         let dummyAuthor = GroupMember(
             id: UUID(),
@@ -196,7 +196,7 @@ private extension BlogPost {
 }
 
 private extension Expense {
-    init(from row: ExpenseRow) {
+    init(from row: ExpenseRecord) {
         let payerColor = Color(hex: row.paidByProfile?.avatarColor ?? "#3B82F6")
         let payer = GroupMember(
             id: row.paidById,

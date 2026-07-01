@@ -80,7 +80,7 @@ struct POIRow: Codable {
 
 // MARK: - Blog posts
 
-struct BlogPostRow: Codable {
+struct BlogPostRecord: Codable {
     let id: UUID
     let groupId: UUID
     let title: String
@@ -99,7 +99,7 @@ struct BlogPostRow: Codable {
 
 // MARK: - Expenses
 
-struct ExpenseRow: Codable {
+struct ExpenseRecord: Codable {
     let id: UUID
     let groupId: UUID
     let paidById: UUID
