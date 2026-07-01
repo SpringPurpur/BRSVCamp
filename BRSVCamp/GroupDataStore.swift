@@ -110,7 +110,7 @@ final class GroupDataStore {
         if let pct = batteryPercent {
             payload["battery_level"] = .double(Double(pct))
         }
-        try? await supabase.from("user_locations").upsert(payload).execute()
+        _ = try? await supabase.from("user_locations").upsert(payload).execute()
     }
 
     func reset() {
