@@ -5,7 +5,7 @@ import SwiftUI
 // MARK: - GroupMember
 
 struct GroupMember: Identifiable {
-    let id = UUID()
+    let id: UUID
     let name: String
     let avatarColor: Color
     let coordinate: CLLocationCoordinate2D
@@ -14,18 +14,32 @@ struct GroupMember: Identifiable {
     let battery: Int
 
     var initials: String { String(name.prefix(1)) }
+
+    init(id: UUID = UUID(), name: String, avatarColor: Color, coordinate: CLLocationCoordinate2D,
+         isOnline: Bool, lastSeen: Date, battery: Int) {
+        self.id = id; self.name = name; self.avatarColor = avatarColor
+        self.coordinate = coordinate; self.isOnline = isOnline
+        self.lastSeen = lastSeen; self.battery = battery
+    }
 }
 
 // MARK: - Point of Interest
 
 struct PointOfInterest: Identifiable {
-    let id = UUID()
+    let id: UUID
     let title: String
     let description: String
     let coordinate: CLLocationCoordinate2D
     let category: POICategory
     let createdBy: String
     let date: Date
+
+    init(id: UUID = UUID(), title: String, description: String, coordinate: CLLocationCoordinate2D,
+         category: POICategory, createdBy: String, date: Date) {
+        self.id = id; self.title = title; self.description = description
+        self.coordinate = coordinate; self.category = category
+        self.createdBy = createdBy; self.date = date
+    }
 }
 
 enum POICategory: String, CaseIterable {
@@ -59,19 +73,25 @@ enum POICategory: String, CaseIterable {
 // MARK: - Blog
 
 struct BlogPost: Identifiable {
-    let id = UUID()
+    let id: UUID
     let author: GroupMember
     let title: String
     let content: String
     let date: Date
     let poi: PointOfInterest?
     let headerColors: [Color]
+
+    init(id: UUID = UUID(), author: GroupMember, title: String, content: String,
+         date: Date, poi: PointOfInterest?, headerColors: [Color]) {
+        self.id = id; self.author = author; self.title = title; self.content = content
+        self.date = date; self.poi = poi; self.headerColors = headerColors
+    }
 }
 
 // MARK: - Expenses
 
 struct Expense: Identifiable {
-    let id = UUID()
+    let id: UUID
     let paidBy: GroupMember
     let amount: Double
     let currency: String
@@ -79,13 +99,23 @@ struct Expense: Identifiable {
     let description: String
     let date: Date
     var splits: [ExpenseSplit]
+
+    init(id: UUID = UUID(), paidBy: GroupMember, amount: Double, currency: String,
+         category: ExpenseCategory, description: String, date: Date, splits: [ExpenseSplit]) {
+        self.id = id; self.paidBy = paidBy; self.amount = amount; self.currency = currency
+        self.category = category; self.description = description; self.date = date; self.splits = splits
+    }
 }
 
 struct ExpenseSplit: Identifiable {
-    let id = UUID()
+    let id: UUID
     let member: GroupMember
     let amount: Double
     var settled: Bool
+
+    init(id: UUID = UUID(), member: GroupMember, amount: Double, settled: Bool) {
+        self.id = id; self.member = member; self.amount = amount; self.settled = settled
+    }
 }
 
 enum ExpenseCategory: String, CaseIterable {
