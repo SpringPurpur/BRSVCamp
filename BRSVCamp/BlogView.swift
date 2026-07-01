@@ -3,7 +3,8 @@ import SwiftUI
 // MARK: - BlogView
 
 struct BlogView: View {
-    let posts = MockData.posts
+    @Environment(GroupDataStore.self) private var dataStore
+    private var posts: [BlogPost] { dataStore.posts }
 
     var body: some View {
         NavigationStack {

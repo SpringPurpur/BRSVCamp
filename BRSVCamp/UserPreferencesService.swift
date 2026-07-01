@@ -25,14 +25,21 @@ final class UserPreferencesService {
     var preferences = UserPrivacyPreferences.default
     var isLoading = false
 
-    private let userId: UUID
+    private var userId: UUID?
 
-    init(userId: UUID) {
+    func configure(userId: UUID) {
+        guard self.userId != userId else { return }
         self.userId = userId
         Task { await load() }
     }
 
+    func reset() {
+        userId = nil
+        preferences = .default
+    }
+
     func load() async {
+        guard let userId else { return }
         await MainActor.run { isLoading = true }
         do {
             let result: UserPrivacyPreferences = try await supabase
@@ -63,17 +70,17 @@ final class UserPreferencesService {
         preferences.appearOnline = value
         try await persist()
 
-        // Dacă userul se ascunde, marchează imediat ca offline în user_locations
-        if !value {
+        if !value, let userId {
             try await supabase
                 .from("user_locations")
-                .update(["is_online": false])
+                .update(["is_online": AnyJSON.bool(false)])
                 .eq("user_id", value: userId.uuidString)
                 .execute()
         }
     }
 
     private func persist() async throws {
+        guard let userId else { return }
         try await supabase
             .from("profiles")
             .update([

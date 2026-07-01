@@ -2,12 +2,10 @@ import SwiftUI
 import MapKit
 import Observation
 
-// MARK: - ViewModel
+// MARK: - ViewModel (UI state only — date reale vin din GroupDataStore)
 
 @Observable
 final class MapViewModel {
-    var members = MockData.members
-    var pois = MockData.pois
     var selectedMember: GroupMember?
     var selectedPOI: PointOfInterest?
     var cameraPosition = MapCameraPosition.region(
@@ -21,6 +19,11 @@ final class MapViewModel {
 // MARK: - MapView
 
 struct MapView: View {
+    @Environment(GroupDataStore.self) private var dataStore
+    @Environment(GroupService.self)   private var groupService
+    @Environment(AuthService.self)    private var auth
+    @Environment(UserPreferencesService.self) private var prefs
+
     @State private var vm = MapViewModel()
     @State private var locationService = LocationService()
     @State private var hasCenteredOnUser = false
@@ -30,13 +33,13 @@ struct MapView: View {
             ZStack(alignment: .bottom) {
                 Map(position: $vm.cameraPosition) {
                     UserAnnotation()
-                    ForEach(vm.members) { member in
+                    ForEach(dataStore.members) { member in
                         Annotation(member.name, coordinate: member.coordinate, anchor: .bottom) {
                             MemberMapPin(member: member)
                                 .onTapGesture { vm.selectedMember = member }
                         }
                     }
-                    ForEach(vm.pois) { poi in
+                    ForEach(dataStore.pois) { poi in
                         Annotation(poi.title, coordinate: poi.coordinate, anchor: .bottom) {
                             POIMapPin(poi: poi)
                                 .onTapGesture { vm.selectedPOI = poi }
@@ -57,8 +60,19 @@ struct MapView: View {
                         ))
                     }
                 }
+                .onChange(of: locationService.userLocation) { _, coord in
+                    guard let coord,
+                          prefs.preferences.shareLocation,
+                          let userId = auth.currentUserId,
+                          let groupId = groupService.currentGroup?.id else { return }
+                    UIDevice.current.isBatteryMonitoringEnabled = true
+                    let battery = UIDevice.current.batteryLevel
+                    let batteryPct = battery >= 0 ? Int(battery * 100) : nil
+                    Task { await dataStore.uploadLocation(userId: userId, groupId: groupId,
+                                                          coordinate: coord, batteryPercent: batteryPct) }
+                }
 
-                MemberStatusBar(members: vm.members) { member in
+                MemberStatusBar(members: dataStore.members) { member in
                     vm.selectedMember = member
                 }
             }
@@ -91,6 +105,11 @@ struct MapView: View {
                     }
                 }
             }
+        }
+        // Polling membri la fiecare 15s cât timp harta e vizibilă
+        .task(id: groupService.currentGroup?.id) {
+            guard let groupId = groupService.currentGroup?.id else { return }
+            await dataStore.pollMembers(groupId: groupId)
         }
         .sheet(item: $vm.selectedMember) { member in
             MemberDetailSheet(member: member)

@@ -1,51 +1,56 @@
 import SwiftUI
 
 struct ProfileView: View {
-    let currentUser = MockData.currentUser
-    let members = MockData.members
-    private let groupName = "Aventurierii"
-    private let inviteCode = "BRSV-4829"
+    @Environment(AuthService.self)            private var auth
+    @Environment(GroupService.self)           private var groupService
+    @Environment(GroupDataStore.self)         private var dataStore
+    @Environment(UserPreferencesService.self) private var prefs
 
-    @Environment(AuthService.self) private var auth
-    // TODO: înlocuit cu userId real din auth.currentUserId când mock data e scos
-    @State private var prefsService = UserPreferencesService(userId: UUID())
+    private var currentUser: GroupMember? {
+        guard let uid = auth.currentUserId else { return nil }
+        return dataStore.members.first { $0.id == uid }
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    UserHeaderCard(user: currentUser)
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
+                if let currentUser {
+                    Section {
+                        UserHeaderCard(user: currentUser)
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                    }
+                }
+
+                if let group = groupService.currentGroup {
+                    Section {
+                        GroupInfoRow(name: group.name, inviteCode: group.inviteCode)
+                    } header: {
+                        Text("Grupul meu")
+                    }
                 }
 
                 Section {
-                    GroupInfoRow(name: groupName, inviteCode: inviteCode)
-                } header: {
-                    Text("Grupul meu")
-                }
-
-                Section {
-                    ForEach(members) { member in
-                        MemberListRow(member: member, isCurrentUser: member.id == currentUser.id)
+                    ForEach(dataStore.members) { member in
+                        MemberListRow(member: member, isCurrentUser: member.id == auth.currentUserId)
                     }
                 } header: {
-                    Text("Membrii (\(members.count))")
+                    Text("Membrii (\(dataStore.members.count))")
                 }
 
                 Section {
                     StatRow(icon: "mappin.circle.fill", color: .orange,
-                            label: "Puncte marcate", value: "\(MockData.pois.count)")
+                            label: "Puncte marcate", value: "\(dataStore.pois.count)")
                     StatRow(icon: "doc.text.fill", color: .blue,
-                            label: "Postări blog", value: "\(MockData.posts.count)")
+                            label: "Postări blog", value: "\(dataStore.posts.count)")
                     StatRow(icon: "creditcard.fill", color: .purple,
-                            label: "Cheltuieli înregistrate", value: "\(MockData.expenses.count)")
+                            label: "Cheltuieli înregistrate", value: "\(dataStore.expenses.count)")
                 } header: {
                     Text("Statistici trip")
                 }
 
                 Section {
-                    NavigationLink(destination: PrivacySettingsView(prefsService: prefsService)) {
+                    NavigationLink(destination: PrivacySettingsView(prefsService: prefs)) {
                         Label("Confidențialitate", systemImage: "hand.raised.fill")
                             .labelStyle(ColoredIconLabelStyle(color: .blue))
                     }
@@ -57,14 +62,6 @@ struct ProfileView: View {
                     }
                 } header: {
                     Text("Cont")
-                }
-
-                Section {
-                    Button(role: .destructive) {
-                        // TODO: leave group
-                    } label: {
-                        Label("Ieși din grup", systemImage: "rectangle.portrait.and.arrow.right")
-                    }
                 }
             }
             .navigationTitle("Profil")

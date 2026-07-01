@@ -16,11 +16,18 @@ create table profiles (
   share_location boolean not null default true,
   share_battery  boolean not null default true,
   appear_online  boolean not null default true,
+  privacy_consent_at timestamptz,
   created_at    timestamptz not null default now()
 );
 ```
 
 > `avatar_color` — hex string, setat la înregistrare. Folosit pentru avatar-ul colorat din UI.
+> `privacy_consent_at` — momentul în care utilizatorul a acceptat Politica de Confidențialitate la înregistrare (vezi [secțiunea 9](#9-conformitate-gdpr)). Setat automat de `handle_new_user()`.
+
+> **Migrare pe un proiect Supabase deja creat** (dacă tabela `profiles` există deja fără această coloană):
+> ```sql
+> alter table profiles add column privacy_consent_at timestamptz;
+> ```
 
 ---
 
@@ -192,8 +199,12 @@ create or replace function handle_new_user()
 returns trigger
 language plpgsql security definer as $$
 begin
-  insert into profiles (id, display_name)
-  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)));
+  insert into profiles (id, display_name, privacy_consent_at)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)),
+    (new.raw_user_meta_data->>'privacy_consent_at')::timestamptz
+  );
   return new;
 end;
 $$;
@@ -202,6 +213,23 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();
 ```
+
+> Aplicația Swift trimite `privacy_consent_at` în metadata la `signUp` doar dacă utilizatorul a bifat consimțământul (vezi `AuthService.signUp` și `AuthView`). Dacă lipsește din metadata, coloana rămâne `null`.
+
+### `delete_user_account` — ștergere definitivă cont (apelat din Setări → Confidențialitate)
+
+```sql
+create or replace function delete_user_account()
+returns void
+language plpgsql security definer as $$
+begin
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+```
+
+> Ștergerea din `auth.users` declanșează `on delete cascade` pe `profiles`, care la rândul lui șterge în cascadă `user_locations`, `points_of_interest` (created_by → `set null`, restul rămân), `blog_posts`, `expenses`, `expense_splits` etc. — vezi referințele `on delete cascade` / `on delete set null` din secțiunea 1.
+> Apelat din Swift: `try await supabase.rpc("delete_user_account").execute()` (vezi `AuthService.deleteAccount()`).
 
 ### `join_group_by_code` — alăturare grup cu invite code
 
@@ -230,6 +258,30 @@ $$;
 ```
 
 > Apelat din Swift: `supabase.rpc("join_group_by_code", params: ["p_invite_code": code])`
+
+### `create_group` — creare grup + adăugare automată ca admin
+
+```sql
+create or replace function create_group(p_name text)
+returns groups
+language plpgsql security definer as $$
+declare
+  v_group groups;
+begin
+  insert into groups (name, invite_code, created_by)
+  values (p_name, generate_invite_code(), auth.uid())
+  returning * into v_group;
+
+  insert into group_members (group_id, user_id, role)
+  values (v_group.id, auth.uid(), 'admin');
+
+  return v_group;
+end;
+$$;
+```
+
+> Necesar ca `security definer` pentru că `group_members` nu are policy de INSERT direct (vezi secțiunea 4) — singurele căi de a deveni membru sunt `create_group` (la creare) și `join_group_by_code` (la alăturare).
+> Apelat din Swift: `supabase.rpc("create_group", params: ["p_name": name])`
 
 ### `generate_invite_code` — generat la creare grup
 
@@ -451,6 +503,32 @@ create policy "splits_update_settled" on expense_splits
   for update to authenticated using (user_id = auth.uid());
 ```
 
+### `group_member_status` — view combinat, folosit de hartă și de lista de membri
+
+```sql
+create view group_member_status
+  with (security_invoker = true) as
+select
+  gm.group_id,
+  p.id            as user_id,
+  p.display_name,
+  p.avatar_color,
+  ul.latitude,
+  ul.longitude,
+  ul.battery_level,
+  ul.is_online,
+  ul.updated_at
+from group_members gm
+join profiles p
+  on p.id = gm.user_id
+left join user_locations ul
+  on ul.user_id = gm.user_id and ul.group_id = gm.group_id;
+```
+
+> `security_invoker = true` (Postgres 15+) — view-ul respectă RLS-ul tabelelor de bază în funcție de utilizatorul care interoghează, nu de proprietarul view-ului. Practic, un user vede doar membrii grupurilor din care face parte, exact ca la interogarea directă a `group_members`.
+> `left join` pe `user_locations` — un membru nou, care nu a trimis încă nicio locație, tot apare în listă (cu `latitude`/`longitude`/`battery_level`/`is_online` = `null`).
+> Apelat din Swift: `supabase.from("group_member_status").select().eq("group_id", value: groupId)`
+
 ---
 
 ## 5. Realtime
@@ -593,11 +671,14 @@ Dai **Review → Save**.
 ## 7. Pași de configurare (în ordine)
 
 1. **Creare proiect** Supabase — salvează `Project URL` și `anon key`
-2. **SQL Editor** — rulează secțiunile 1, 2, 3, 4, 5 în ordine
-3. **Replication** — adaugă `user_locations` (secțiunea 5)
-4. **Storage** — creează cele 3 bucket-uri (secțiunea 6) + politicile pentru `receipts`
-5. **Authentication → Providers** — activează Email (dezactivează "Confirm email" pentru dev)
-6. **API Settings** — copiază `URL` și `anon key` pentru Swift SDK
+2. **SQL Editor** — rulează secțiunile 1, 2, 3, 4 în ordine
+3. **SQL Editor** — rulează view-ul `group_member_status` (după secțiunea 4)
+4. **SQL Editor** — rulează `create_group`, `export_user_data`, `delete_user_account` (secțiunile 3 și 9)
+5. **SQL Editor** — `alter table profiles add column privacy_consent_at timestamptz;` (dacă proiectul exista deja)
+6. **Replication** — adaugă `user_locations` (secțiunea 5)
+7. **Storage** — creează cele 3 bucket-uri (secțiunea 6) + politicile pentru `receipts`
+8. **Authentication → Providers** — activează Email (dezactivează "Confirm email" pentru dev)
+9. **API Settings** — copiază `URL` și `anon key` pentru Swift SDK
 
 ---
 
@@ -635,3 +716,80 @@ channel.on(.postgres_changes, table: "user_locations", filter: "group_id=eq.\(gr
 }
 await channel.subscribe()
 ```
+
+---
+
+## 9. Conformitate GDPR
+
+Status curent — implementat în cod/schemă:
+
+| Cerință | Implementare |
+|---------|--------------|
+| Temei legal (Art. 6(1)(a)) | Consimțământ explicit la înregistrare — checkbox în `AuthView`, blocat dacă nu e bifat (`AuthService.signUp`) |
+| Dovadă consimțământ | `profiles.privacy_consent_at`, setat de `handle_new_user()` din metadata trimisă de Swift |
+| Informare (Art. 13) | `PrivacyNoticeView` — afișată din checkbox-ul de consimțământ înainte de creare cont |
+| Dreptul la ștergere (Art. 17) | `delete_user_account()` — șterge `auth.users`, cascadă pe toate tabelele cu date personale |
+| Retragerea consimțământului | Comutatoare independente în `PrivacySettingsView` (locație, baterie, status online) — reversibile oricând |
+| Minimizarea datelor (Art. 5) | Locație/baterie/status nu se colectează deloc dacă utilizatorul nu activează explicit comutatorul |
+| Rezidența datelor | Proiect Supabase în regiunea `eu-central-1` |
+| Securitate (Art. 32) | RLS pe toate tabelele, `service_role` key nefolosit client-side, `anon`/publishable key în `.gitignore` (`SupabaseConfig.swift`) |
+
+### `export_user_data` — portabilitate date (Art. 20 GDPR)
+
+```sql
+create or replace function export_user_data()
+returns jsonb
+language plpgsql stable as $$
+begin
+  return jsonb_build_object(
+    'exported_at', now(),
+    'profile', (
+      select to_jsonb(p) from profiles p where p.id = auth.uid()
+    ),
+    'group_memberships', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'group_id',   gm.group_id,
+        'group_name', g.name,
+        'role',       gm.role,
+        'joined_at',  gm.joined_at
+      )), '[]')
+      from group_members gm join groups g on g.id = gm.group_id
+      where gm.user_id = auth.uid()
+    ),
+    'locations', (
+      select coalesce(jsonb_agg(to_jsonb(ul)), '[]')
+      from user_locations ul where ul.user_id = auth.uid()
+    ),
+    'points_of_interest', (
+      select coalesce(jsonb_agg(to_jsonb(poi)), '[]')
+      from points_of_interest poi where poi.created_by = auth.uid()
+    ),
+    'blog_posts', (
+      select coalesce(jsonb_agg(to_jsonb(bp)), '[]')
+      from blog_posts bp where bp.author_id = auth.uid()
+    ),
+    'expenses_paid', (
+      select coalesce(jsonb_agg(to_jsonb(e)), '[]')
+      from expenses e where e.paid_by = auth.uid()
+    ),
+    'expense_splits', (
+      select coalesce(jsonb_agg(to_jsonb(es)), '[]')
+      from expense_splits es where es.user_id = auth.uid()
+    )
+  );
+end;
+$$;
+```
+
+> Nu necesită `security definer` — toate subquery-urile sunt filtrate explicit pe `auth.uid()`, deci RLS-ul existent permite deja accesul.
+> Apelat din Swift: `try await supabase.rpc("export_user_data").execute().data` → `Data` cu JSON complet, scris direct într-un fișier `.json` și oferit prin `ShareLink`.
+
+---
+
+Rămas de implementat (roadmap, nu blocant pentru lansare privată):
+
+| Cerință | Notă |
+|---------|------|
+| Portabilitate date (Art. 20) | Export JSON al datelor proprii — de adăugat ca funcție RPC + buton în `PrivacySettingsView` |
+| Politică de reținere formală | Momentan: păstrare pe durata contului, ștergere imediată la cerere. De documentat explicit dacă apar cerințe de retenție minimă/maximă |
+| Registru de procesare | Pentru un grup privat mic, nu e obligatoriu legal, dar acest document (`supabase-schema.md`) poate servi ca bază dacă e nevoie |

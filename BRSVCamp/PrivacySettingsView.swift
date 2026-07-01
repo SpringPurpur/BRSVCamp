@@ -3,6 +3,9 @@ import SwiftUI
 struct PrivacySettingsView: View {
     let prefsService: UserPreferencesService
     @State private var showDeleteConfirm = false
+    @State private var isExporting = false
+    @State private var exportFileURL: URL?
+    @State private var exportError: String?
     @Environment(AuthService.self) private var auth
     @Environment(\.dismiss) private var dismiss
 
@@ -45,6 +48,31 @@ struct PrivacySettingsView: View {
             }
 
             Section {
+                if let url = exportFileURL {
+                    ShareLink(item: url, preview: SharePreview("BRSVCamp Export")) {
+                        Label("Descarcă datele mele", systemImage: "square.and.arrow.up")
+                    }
+                } else {
+                    Button {
+                        Task { await exportData() }
+                    } label: {
+                        HStack {
+                            Label("Exportă datele mele", systemImage: "square.and.arrow.up")
+                            if isExporting { Spacer(); ProgressView() }
+                        }
+                    }
+                    .disabled(isExporting)
+                }
+                if let exportError {
+                    Text(exportError).font(.caption).foregroundStyle(.red)
+                }
+            } header: {
+                Text("Portabilitatea datelor")
+            } footer: {
+                Text("Descarcă un fișier JSON cu profilul tău, locațiile, punctele de interes, postările și cheltuielile (Art. 20 GDPR).")
+            }
+
+            Section {
                 Button(role: .destructive) {
                     showDeleteConfirm = true
                 } label: {
@@ -72,6 +100,23 @@ struct PrivacySettingsView: View {
         } message: {
             Text("Toate datele tale vor fi șterse permanent și nu pot fi recuperate.")
         }
+    }
+
+    private func exportData() async {
+        isExporting = true
+        exportError = nil
+        exportFileURL = nil
+        do {
+            let data = try await supabase.rpc("export_user_data").execute().data
+            let timestamp = Int(Date().timeIntervalSince1970)
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("brsvcamp-export-\(timestamp).json")
+            try data.write(to: url)
+            await MainActor.run { exportFileURL = url }
+        } catch {
+            await MainActor.run { exportError = error.localizedDescription }
+        }
+        await MainActor.run { isExporting = false }
     }
 }
 

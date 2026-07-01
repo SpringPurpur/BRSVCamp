@@ -28,12 +28,19 @@ final class AuthService {
         }
     }
 
-    func signUp(email: String, password: String, displayName: String) async {
+    func signUp(email: String, password: String, displayName: String, consentGiven: Bool) async {
+        guard consentGiven else {
+            await MainActor.run { self.error = "Trebuie să accepți Politica de Confidențialitate pentru a crea un cont." }
+            return
+        }
         await run {
             try await supabase.auth.signUp(
                 email: email,
                 password: password,
-                data: ["display_name": AnyJSON.string(displayName)]
+                data: [
+                    "display_name": AnyJSON.string(displayName),
+                    "privacy_consent_at": AnyJSON.string(ISO8601DateFormatter().string(from: Date()))
+                ]
             )
         }
     }

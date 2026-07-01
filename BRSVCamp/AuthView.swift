@@ -7,6 +7,8 @@ struct AuthView: View {
     @State private var password = ""
     @State private var displayName = ""
     @State private var confirmPassword = ""
+    @State private var consentGiven = false
+    @State private var showPrivacyNotice = false
 
     private enum Mode { case login, register }
 
@@ -17,6 +19,7 @@ struct AuthView: View {
         case .register:
             return !displayName.isEmpty && !email.isEmpty
                 && password.count >= 6 && password == confirmPassword
+                && consentGiven
         }
     }
 
@@ -68,6 +71,14 @@ struct AuthView: View {
                     }
                     .padding(.horizontal)
 
+                    // Consimțământ GDPR (doar la înregistrare)
+                    if mode == .register {
+                        ConsentRow(isOn: $consentGiven) {
+                            showPrivacyNotice = true
+                        }
+                        .padding(.horizontal)
+                    }
+
                     // Eroare
                     if let error = auth.error {
                         Text(error)
@@ -102,6 +113,9 @@ struct AuthView: View {
                 .padding(.bottom, 32)
             }
             .navigationBarHidden(true)
+            .sheet(isPresented: $showPrivacyNotice) {
+                PrivacyNoticeView()
+            }
         }
     }
 
@@ -110,7 +124,34 @@ struct AuthView: View {
         case .login:
             await auth.signIn(email: email, password: password)
         case .register:
-            await auth.signUp(email: email, password: password, displayName: displayName)
+            await auth.signUp(email: email, password: password, displayName: displayName, consentGiven: consentGiven)
+        }
+    }
+}
+
+// MARK: - ConsentRow
+
+struct ConsentRow: View {
+    @Binding var isOn: Bool
+    let onShowNotice: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Button {
+                isOn.toggle()
+            } label: {
+                Image(systemName: isOn ? "checkmark.square.fill" : "square")
+                    .font(.title3)
+                    .foregroundStyle(isOn ? Color.accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
+
+            (Text("Am citit și sunt de acord cu ") +
+             Text("Politica de Confidențialitate").foregroundStyle(Color.accentColor).underline() +
+             Text("."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .onTapGesture { onShowNotice() }
         }
     }
 }

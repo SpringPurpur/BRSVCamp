@@ -3,31 +3,34 @@ import SwiftUI
 // MARK: - ExpensesView
 
 struct ExpensesView: View {
-    let expenses = MockData.expenses
-    let currentUser = MockData.currentUser
+    @Environment(GroupDataStore.self) private var dataStore
+    @Environment(AuthService.self)    private var auth
     @State private var selectedExpense: Expense?
+
+    private var expenses: [Expense] { dataStore.expenses }
+    private var currentUserId: UUID? { auth.currentUserId }
 
     private var totalTrip: Double { expenses.reduce(0) { $0 + $1.amount } }
 
     private var iPaid: Double {
         expenses
-            .filter { $0.paidBy.id == currentUser.id }
+            .filter { $0.paidBy.id == currentUserId }
             .reduce(0) { $0 + $1.amount }
     }
 
     private var iOwe: Double {
         expenses
-            .filter { $0.paidBy.id != currentUser.id }
+            .filter { $0.paidBy.id != currentUserId }
             .flatMap { $0.splits }
-            .filter { $0.member.id == currentUser.id && !$0.settled }
+            .filter { $0.member.id == currentUserId && !$0.settled }
             .reduce(0) { $0 + $1.amount }
     }
 
     private var owedToMe: Double {
         expenses
-            .filter { $0.paidBy.id == currentUser.id }
+            .filter { $0.paidBy.id == currentUserId }
             .flatMap { $0.splits }
-            .filter { $0.member.id != currentUser.id && !$0.settled }
+            .filter { $0.member.id != currentUserId && !$0.settled }
             .reduce(0) { $0 + $1.amount }
     }
 
@@ -45,7 +48,7 @@ struct ExpensesView: View {
 
                     LazyVStack(spacing: 10) {
                         ForEach(expenses) { expense in
-                            ExpenseRow(expense: expense, currentUserId: currentUser.id)
+                            ExpenseRow(expense: expense, currentUserId: currentUserId)
                                 .onTapGesture { selectedExpense = expense }
                                 .padding(.horizontal)
                         }
@@ -68,7 +71,7 @@ struct ExpensesView: View {
             }
         }
         .sheet(item: $selectedExpense) { expense in
-            ExpenseDetailSheet(expense: expense, currentUserId: currentUser.id)
+            ExpenseDetailSheet(expense: expense, currentUserId: currentUserId)
         }
     }
 }
@@ -154,7 +157,7 @@ struct SummaryStatCell: View {
 
 struct ExpenseRow: View {
     let expense: Expense
-    let currentUserId: UUID
+    let currentUserId: UUID?
 
     private var myShare: ExpenseSplit? {
         expense.splits.first { $0.member.id == currentUserId }
@@ -207,7 +210,7 @@ struct ExpenseRow: View {
 
 struct ExpenseDetailSheet: View {
     let expense: Expense
-    let currentUserId: UUID
+    let currentUserId: UUID?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
