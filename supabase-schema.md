@@ -433,7 +433,14 @@ create policy "posts_insert" on blog_posts
   );
 
 create policy "posts_update" on blog_posts
-  for update to authenticated using (author_id = auth.uid());
+  for update to authenticated using (
+    author_id = auth.uid()
+    or exists (
+      select 1 from group_members
+      where group_id = blog_posts.group_id
+        and user_id  = auth.uid() and role = 'admin'
+    )
+  );
 
 create policy "posts_delete" on blog_posts
   for delete to authenticated using (
@@ -461,7 +468,15 @@ create policy "photos_insert" on blog_post_photos
   for insert to authenticated with check (
     exists (
       select 1 from blog_posts bp
-      where bp.id = post_id and bp.author_id = auth.uid()
+      where bp.id = post_id
+        and (
+          bp.author_id = auth.uid()
+          or exists (
+            select 1 from group_members gm
+            where gm.group_id = bp.group_id
+              and gm.user_id = auth.uid() and gm.role = 'admin'
+          )
+        )
     )
   );
 
@@ -469,10 +484,28 @@ create policy "photos_delete" on blog_post_photos
   for delete to authenticated using (
     exists (
       select 1 from blog_posts bp
-      where bp.id = post_id and bp.author_id = auth.uid()
+      where bp.id = post_id
+        and (
+          bp.author_id = auth.uid()
+          or exists (
+            select 1 from group_members gm
+            where gm.group_id = bp.group_id
+              and gm.user_id = auth.uid() and gm.role = 'admin'
+          )
+        )
     )
   );
 ```
+
+> `posts_update`/`photos_insert`/`photos_delete` permit și adminii de grup, nu doar autorul — altfel un admin care editează postarea altcuiva (buton de editare vizibil în UI pentru admin) nu ar putea și gestiona pozele acelei postări. `posts_update` inițial nu avea deloc excepția de admin (inconsistent cu `posts_delete`, care o avea) — corectat aici.
+
+> **Migrare pe un proiect deja creat cu policy-urile vechi (fără excepția de admin)**:
+> ```sql
+> drop policy if exists "posts_update" on blog_posts;
+> drop policy if exists "photos_insert" on blog_post_photos;
+> drop policy if exists "photos_delete" on blog_post_photos;
+> -- apoi rulezi din nou cele 3 create policy de mai sus
+> ```
 
 ### expenses
 
