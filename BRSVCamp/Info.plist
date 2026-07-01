@@ -2,7 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>BRSVCamp folosește locația pentru a-ți arăta poziția pe hartă grupului.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.fancywrappers.BRSVCamp.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>brsvcamp</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

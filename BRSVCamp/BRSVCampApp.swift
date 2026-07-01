@@ -27,6 +27,22 @@ struct BRSVCampApp: App {
             .environment(prefs)
             .animation(.easeInOut(duration: 0.3), value: auth.isAuthenticated)
             .animation(.easeInOut(duration: 0.25), value: groupService.currentGroup?.id)
+            // Link-ul din emailul de confirmare deschide aplicația direct (brsvcamp://auth-callback)
+            .onOpenURL { url in
+                Task { await auth.handleAuthCallback(url: url) }
+            }
+            .overlay(alignment: .top) {
+                if auth.justVerifiedEmail {
+                    EmailConfirmedBanner()
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .task {
+                            try? await Task.sleep(for: .seconds(3))
+                            withAnimation { auth.justVerifiedEmail = false }
+                        }
+                }
+            }
+            .animation(.spring(duration: 0.4), value: auth.justVerifiedEmail)
             // Când userId se schimbă (login/logout), configurează serviciile
             .task(id: auth.currentUserId) {
                 guard let userId = auth.currentUserId else {
@@ -44,5 +60,23 @@ struct BRSVCampApp: App {
                 await dataStore.loadAll(groupId: groupId)
             }
         }
+    }
+}
+
+// MARK: - EmailConfirmedBanner
+
+private struct EmailConfirmedBanner: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+            Text("Email confirmat cu succes!")
+                .font(.subheadline.weight(.semibold))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .shadow(radius: 6)
+        .padding(.horizontal)
     }
 }

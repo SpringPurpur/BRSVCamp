@@ -25,7 +25,18 @@ struct AuthView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            if auth.awaitingEmailConfirmation {
+                CheckYourEmailView(email: email) {
+                    auth.awaitingEmailConfirmation = false
+                }
+            } else {
+                form
+            }
+        }
+    }
+
+    private var form: some View {
+        ScrollView {
                 VStack(spacing: 32) {
                     // Logo / titlu
                     VStack(spacing: 8) {
@@ -116,7 +127,6 @@ struct AuthView: View {
             .sheet(isPresented: $showPrivacyNotice) {
                 PrivacyNoticeView()
             }
-        }
     }
 
     private func submit() async {
@@ -126,6 +136,35 @@ struct AuthView: View {
         case .register:
             await auth.signUp(email: email, password: password, displayName: displayName, consentGiven: consentGiven)
         }
+    }
+}
+
+// MARK: - CheckYourEmailView
+
+struct CheckYourEmailView: View {
+    let email: String
+    let onBack: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "envelope.badge.fill")
+                .font(.system(size: 56))
+                .foregroundStyle(.blue.gradient)
+
+            Text("Verifică-ți emailul")
+                .font(.title2.bold())
+
+            Text("Ți-am trimis un link de confirmare la **\(email)**. Deschide-l ca să-ți activezi contul — te aducem direct înapoi în aplicație.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Button("Înapoi", action: onBack)
+                .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationBarHidden(true)
     }
 }
 
@@ -146,13 +185,22 @@ struct ConsentRow: View {
             }
             .buttonStyle(.plain)
 
-            (Text("Am citit și sunt de acord cu ") +
-             Text("Politica de Confidențialitate").foregroundStyle(Color.accentColor).underline() +
-             Text("."))
+            Text(consentAttributedString)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .onTapGesture { onShowNotice() }
         }
+    }
+
+    private var consentAttributedString: AttributedString {
+        var link = AttributedString("Politica de Confidențialitate")
+        link.foregroundColor = .accentColor
+        link.underlineStyle = .single
+
+        var result = AttributedString("Am citit și sunt de acord cu ")
+        result += link
+        result += AttributedString(".")
+        return result
     }
 }
 
