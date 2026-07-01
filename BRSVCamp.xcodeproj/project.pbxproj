@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A1CD8AF42FF506EB003E8E68 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = A1CD8AF32FF506EB003E8E68 /* PostgREST */; };
+		A1CD8AF62FF506EB003E8E68 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A1CD8AF52FF506EB003E8E68 /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		A15B100B2FE7FDD400009EA2 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1CD8AF62FF506EB003E8E68 /* Supabase in Frameworks */,
+				A1CD8AF42FF506EB003E8E68 /* PostgREST in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,8 @@
 			);
 			name = BRSVCamp;
 			packageProductDependencies = (
+				A1CD8AF32FF506EB003E8E68 /* PostgREST */,
+				A1CD8AF52FF506EB003E8E68 /* Supabase */,
 			);
 			productName = BRSVCamp;
 			productReference = A15B0FFB2FE7FDD200009EA2 /* BRSVCamp.app */;
@@ -195,6 +204,9 @@
 			);
 			mainGroup = A15B0FF22FE7FDD200009EA2;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1CD8AF22FF506EB003E8E68 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A15B0FFC2FE7FDD200009EA2 /* Products */;
 			projectDirPath = "";
@@ -578,6 +590,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A1CD8AF22FF506EB003E8E68 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase-community/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1CD8AF32FF506EB003E8E68 /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1CD8AF22FF506EB003E8E68 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		A1CD8AF52FF506EB003E8E68 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1CD8AF22FF506EB003E8E68 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A15B0FF32FE7FDD200009EA2 /* Project object */;
 }
