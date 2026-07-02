@@ -12,14 +12,26 @@ struct GroupMember: Identifiable {
     let isOnline: Bool
     let lastSeen: Date
     let battery: Int
+    let isAdmin: Bool
 
     var initials: String { String(name.prefix(1)) }
 
+    // Sursă unică pentru iconița de baterie — folosită peste tot (hartă, profil, listă membri)
+    // ca să nu mai apară inconsistențe ca bulina fixă "battery.50" din profilul vechi.
+    var batteryIcon: String {
+        switch battery {
+        case 76...100: return "battery.100"
+        case 51...75:  return "battery.75"
+        case 26...50:  return "battery.50"
+        default:       return "battery.25"
+        }
+    }
+
     init(id: UUID = UUID(), name: String, avatarColor: Color, coordinate: CLLocationCoordinate2D,
-         isOnline: Bool, lastSeen: Date, battery: Int) {
+         isOnline: Bool, lastSeen: Date, battery: Int, isAdmin: Bool = false) {
         self.id = id; self.name = name; self.avatarColor = avatarColor
         self.coordinate = coordinate; self.isOnline = isOnline
-        self.lastSeen = lastSeen; self.battery = battery
+        self.lastSeen = lastSeen; self.battery = battery; self.isAdmin = isAdmin
     }
 }
 

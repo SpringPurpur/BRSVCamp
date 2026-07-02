@@ -287,7 +287,7 @@ struct MemberChip: View {
             }
 
             HStack(spacing: 2) {
-                Image(systemName: batteryIcon(member.battery))
+                Image(systemName: member.batteryIcon)
                     .font(.caption2)
                     .foregroundStyle(member.battery > 20 ? Color.green : Color.red)
                 Text("\(member.battery)%")
@@ -304,15 +304,6 @@ struct MemberChip: View {
     private func timeAgo(_ date: Date) -> String {
         let minutes = Int(-date.timeIntervalSinceNow / 60)
         return minutes < 60 ? "\(minutes)m" : "\(minutes / 60)h"
-    }
-
-    private func batteryIcon(_ level: Int) -> String {
-        switch level {
-        case 76...100: return "battery.100"
-        case 51...75:  return "battery.75"
-        case 26...50:  return "battery.50"
-        default:       return "battery.25"
-        }
     }
 }
 
@@ -336,8 +327,15 @@ struct MemberDetailSheet: View {
                             .foregroundStyle(.white)
                     }
 
-                Text(member.name)
-                    .font(.title.bold())
+                HStack(spacing: 6) {
+                    Text(member.name)
+                        .font(.title.bold())
+                    if member.isAdmin {
+                        Image(systemName: "crown.fill")
+                            .font(.title3)
+                            .foregroundStyle(.yellow)
+                    }
+                }
 
                 HStack(spacing: 32) {
                     DetailStat(
@@ -347,7 +345,7 @@ struct MemberDetailSheet: View {
                         value: member.isOnline ? "Live" : timeAgo(member.lastSeen)
                     )
                     DetailStat(
-                        icon: batteryIcon(member.battery),
+                        icon: member.batteryIcon,
                         iconColor: member.battery > 20 ? .green : .red,
                         label: "Baterie",
                         value: "\(member.battery)%"
@@ -372,15 +370,6 @@ struct MemberDetailSheet: View {
     private func timeAgo(_ date: Date) -> String {
         let minutes = Int(-date.timeIntervalSinceNow / 60)
         return minutes < 60 ? "acum \(minutes)m" : "acum \(minutes / 60)h"
-    }
-
-    private func batteryIcon(_ level: Int) -> String {
-        switch level {
-        case 76...100: return "battery.100"
-        case 51...75:  return "battery.75"
-        case 26...50:  return "battery.50"
-        default:       return "battery.25"
-        }
     }
 }
 

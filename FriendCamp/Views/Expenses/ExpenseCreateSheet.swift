@@ -410,9 +410,6 @@ struct ExpenseCreateSheet: View {
     }
 
     private func isoDateOnly(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        return formatter.string(from: date)
+        dateOnlyFormatter.string(from: date)
     }
 }

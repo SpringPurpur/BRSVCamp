@@ -16,6 +16,9 @@ final class AuthService {
     var awaitingEmailConfirmation = false
     // Declanșează un banner de succes când userul revine în app prin link-ul din email
     var justVerifiedEmail = false
+    // false până la primul eveniment din authStateChanges — evită flash-ul de AuthView
+    // înainte ca sesiunea locală din Keychain să apuce să se încarce la pornirea aplicației.
+    var hasCheckedSession = false
 
     var isAuthenticated: Bool { session != nil }
     var currentUserId: UUID? { session?.user.id }
@@ -28,6 +31,7 @@ final class AuthService {
                 let validSession = session?.isExpired == true ? nil : session
                 await MainActor.run {
                     self.session = validSession
+                    self.hasCheckedSession = true
                     if validSession != nil { self.awaitingEmailConfirmation = false }
                 }
             }

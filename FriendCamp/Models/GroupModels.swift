@@ -38,6 +38,7 @@ struct MemberStatusRow: Codable {
     let userId: UUID
     let displayName: String
     let avatarColor: String
+    let role: String
     let latitude: Double?
     let longitude: Double?
     let batteryLevel: Int?
@@ -49,6 +50,7 @@ struct MemberStatusRow: Codable {
         case userId       = "user_id"
         case displayName  = "display_name"
         case avatarColor  = "avatar_color"
+        case role
         case latitude, longitude
         case batteryLevel = "battery_level"
         case isOnline     = "is_online"
@@ -145,7 +147,9 @@ struct ExpenseRecord: Codable {
     let currency: String
     let category: String
     let description: String
-    let date: Date
+    // Coloana Postgres e "date" (fără oră) — vine ca "yyyy-MM-dd", nu ca ISO8601 complet,
+    // deci decoder-ul implicit (care acceptă doar timestamp-uri ISO8601) ar eșua pe Date direct.
+    let date: String
     let receiptURL: String?
     let editCount: Int
     let updatedAt: Date?

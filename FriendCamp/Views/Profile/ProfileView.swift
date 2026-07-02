@@ -88,8 +88,15 @@ struct UserHeaderCard: View {
                 }
 
             VStack(spacing: 4) {
-                Text(user.name)
-                    .font(.title2.bold())
+                HStack(spacing: 6) {
+                    Text(user.name)
+                        .font(.title2.bold())
+                    if user.isAdmin {
+                        Image(systemName: "crown.fill")
+                            .font(.title3)
+                            .foregroundStyle(.yellow)
+                    }
+                }
                 Text("Eu")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -140,6 +147,17 @@ struct MemberListRow: View {
     let member: GroupMember
     let isCurrentUser: Bool
 
+    @Environment(GroupService.self)   private var groupService
+    @Environment(GroupDataStore.self) private var dataStore
+
+    @State private var showTransferConfirm = false
+    @State private var isTransferring = false
+
+    // Doar adminul curent poate promova pe altcineva, și doar dacă acela nu e deja admin.
+    private var canPromote: Bool {
+        groupService.currentUserRole == "admin" && !isCurrentUser && !member.isAdmin
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Circle()
@@ -156,6 +174,11 @@ struct MemberListRow: View {
                     Text(isCurrentUser ? "\(member.name) (tu)" : member.name)
                         .font(.subheadline)
                         .fontWeight(isCurrentUser ? .bold : .regular)
+                    if member.isAdmin {
+                        Image(systemName: "crown.fill")
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                    }
                 }
                 HStack(spacing: 4) {
                     Circle()
@@ -170,14 +193,48 @@ struct MemberListRow: View {
             Spacer()
 
             HStack(spacing: 3) {
-                Image(systemName: "battery.50")
+                Image(systemName: member.batteryIcon)
                     .font(.caption)
                     .foregroundStyle(member.battery > 20 ? Color.green : Color.red)
                 Text("\(member.battery)%")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            if canPromote {
+                Button {
+                    showTransferConfirm = true
+                } label: {
+                    Image(systemName: "crown")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(isTransferring)
+                .padding(.leading, 4)
+            }
         }
+        .confirmationDialog(
+            "Faci pe \(member.name) admin?",
+            isPresented: $showTransferConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Fă admin", role: .destructive) {
+                Task { await promote() }
+            }
+            Button("Anulează", role: .cancel) {}
+        } message: {
+            Text("Tu rămâi membru obișnuit — un singur admin poate exista per grup.")
+        }
+    }
+
+    private func promote() async {
+        isTransferring = true
+        let success = await groupService.transferAdmin(to: member.id)
+        if success, let groupId = groupService.currentGroup?.id {
+            await dataStore.loadMembers(groupId: groupId)
+        }
+        isTransferring = false
     }
 }
 

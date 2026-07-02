@@ -161,7 +161,8 @@ private extension GroupMember {
             ),
             isOnline: row.isOnline ?? false,
             lastSeen: row.updatedAt ?? Date(),
-            battery:  row.batteryLevel ?? 0
+            battery:  row.batteryLevel ?? 0,
+            isAdmin:  row.role == "admin"
         )
     }
 }
@@ -197,6 +198,15 @@ private extension PointOfInterest {
         )
     }
 }
+
+// Pentru coloane Postgres de tip "date" (fără oră) — folosit atât la citire (aici) cât
+// și la scriere (ExpenseCreateSheet), ca să nu depindă de decoder-ul ISO8601 implicit.
+let dateOnlyFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.timeZone = TimeZone(identifier: "UTC")
+    return formatter
+}()
 
 private let gradientPalettes: [[Color]] = [
     [.blue, .cyan], [.orange, .red], [.green, .teal],
@@ -252,7 +262,7 @@ private extension Expense {
             currency: row.currency,
             category: ExpenseCategory(dbValue: row.category),
             description: row.description,
-            date: row.date,
+            date: dateOnlyFormatter.date(from: row.date) ?? Date(),
             splits: splits,
             receiptURL: receiptURL,
             editCount: row.editCount,

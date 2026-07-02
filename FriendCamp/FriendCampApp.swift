@@ -10,7 +10,10 @@ struct FriendCampApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if !auth.isAuthenticated {
+                if !auth.hasCheckedSession {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if !auth.isAuthenticated {
                     AuthView()
                 } else if !groupService.hasChecked {
                     ProgressView()

@@ -65,6 +65,22 @@ final class GroupService {
         await MainActor.run { isLoading = false }
     }
 
+    // Predă rolul de admin altui membru — validat și server-side în funcția RPC
+    // (nu doar prin faptul că butonul e ascuns userilor non-admin în UI).
+    @discardableResult
+    func transferAdmin(to userId: UUID) async -> Bool {
+        await MainActor.run { isLoading = true; error = nil }
+        do {
+            try await supabase.rpc("transfer_admin", params: ["p_new_admin_id": userId.uuidString]).execute()
+            await MainActor.run { currentUserRole = "member" }
+            await MainActor.run { isLoading = false }
+            return true
+        } catch {
+            await MainActor.run { self.error = error.localizedDescription; isLoading = false }
+            return false
+        }
+    }
+
     func reset() {
         currentGroup = nil
         currentUserRole = nil
