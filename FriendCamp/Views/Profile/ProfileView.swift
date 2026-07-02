@@ -1,14 +1,27 @@
 import SwiftUI
 
 struct ProfileView: View {
-    @Environment(AuthService.self)            private var auth
-    @Environment(GroupService.self)           private var groupService
-    @Environment(GroupDataStore.self)         private var dataStore
-    @Environment(UserPreferencesService.self) private var prefs
+    @Environment(AuthService.self)             private var auth
+    @Environment(GroupService.self)            private var groupService
+    @Environment(GroupDataStore.self)          private var dataStore
+    @Environment(UserPreferencesService.self)  private var prefs
+    @Environment(MapVisibilityPreferences.self) private var mapVisibility
 
+    @State private var showAddGroupSheet = false
+
+    // Roster-ul rămâne scopat la grupul ACTIV — reprezintă "membrii acestui grup",
+    // spre deosebire de dataStore.members, care combină toate grupurile vizibile pe hartă.
+    private var activeGroupMembers: [GroupMember] {
+        guard let activeId = groupService.activeGroupId else { return [] }
+        return dataStore.members.filter { $0.groupId == activeId }
+    }
+
+    // Căutat în roster-ul grupului ACTIV, nu în dataStore.members brut — altfel, într-o
+    // listă multi-grup, primul rând găsit ar putea reflecta rolul dintr-un alt grup decât
+    // cel activ (isAdmin ar arăta greșit dacă ești admin într-un grup și membru în altul).
     private var currentUser: GroupMember? {
         guard let uid = auth.currentUserId else { return nil }
-        return dataStore.members.first { $0.id == uid }
+        return activeGroupMembers.first { $0.id == uid }
     }
 
     var body: some View {
@@ -22,20 +35,31 @@ struct ProfileView: View {
                     }
                 }
 
-                if let group = groupService.currentGroup {
-                    Section {
-                        GroupInfoRow(name: group.name, inviteCode: group.inviteCode)
-                    } header: {
-                        Text("Grupul meu")
+                Section {
+                    ForEach(groupService.myGroups) { membership in
+                        MyGroupRow(
+                            membership: membership,
+                            isActive: membership.groupId == groupService.activeGroupId,
+                            isVisibleOnMap: mapVisibility.isVisible(membership.groupId),
+                            onSetActive: { groupService.setActiveGroup(membership.groupId) },
+                            onToggleVisible: { mapVisibility.setVisible(membership.groupId, $0) }
+                        )
                     }
+                    Button {
+                        showAddGroupSheet = true
+                    } label: {
+                        Label("Alătură-te sau creează alt grup", systemImage: "plus.circle")
+                    }
+                } header: {
+                    Text("Grupurile mele")
                 }
 
                 Section {
-                    ForEach(dataStore.members) { member in
+                    ForEach(activeGroupMembers) { member in
                         MemberListRow(member: member, isCurrentUser: member.id == auth.currentUserId)
                     }
                 } header: {
-                    Text("Membrii (\(dataStore.members.count))")
+                    Text("Membrii (\(activeGroupMembers.count))")
                 }
 
                 Section {
@@ -65,6 +89,9 @@ struct ProfileView: View {
                 }
             }
             .navigationTitle("Profil")
+            .sheet(isPresented: $showAddGroupSheet) {
+                GroupOnboardingView(isPresentedAsSheet: true)
+            }
         }
     }
 }
@@ -110,36 +137,64 @@ struct UserHeaderCard: View {
     }
 }
 
-struct GroupInfoRow: View {
-    let name: String
-    let inviteCode: String
+struct MyGroupRow: View {
+    let membership: MyGroupMembership
+    let isActive: Bool
+    let isVisibleOnMap: Bool
+    let onSetActive: () -> Void
+    let onToggleVisible: (Bool) -> Void
+
     @State private var codeCopied = false
 
     var body: some View {
-        HStack {
-            Label(name, systemImage: "person.3.fill")
-                .font(.body)
-
-            Spacer()
-
-            Button {
-                UIPasteboard.general.string = inviteCode
-                codeCopied = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { codeCopied = false }
-            } label: {
-                HStack(spacing: 4) {
-                    Text(inviteCode)
-                        .font(.caption.monospaced())
-                    Image(systemName: codeCopied ? "checkmark" : "doc.on.doc")
-                        .font(.caption)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button(action: onSetActive) {
+                    Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isActive ? .green : .secondary)
                 }
-                .foregroundStyle(codeCopied ? .green : Color.accentColor)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Color.accentColor.opacity(0.1), in: Capsule())
+                .buttonStyle(.plain)
+
+                HStack(spacing: 6) {
+                    Text(membership.group.name)
+                        .font(.body)
+                        .fontWeight(isActive ? .semibold : .regular)
+                    if membership.role == "admin" {
+                        Image(systemName: "crown.fill")
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    UIPasteboard.general.string = membership.group.inviteCode
+                    codeCopied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { codeCopied = false }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(membership.group.inviteCode)
+                            .font(.caption.monospaced())
+                        Image(systemName: codeCopied ? "checkmark" : "doc.on.doc")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(codeCopied ? .green : Color.accentColor)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.accentColor.opacity(0.1), in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+
+            Toggle("Vizibil pe hartă", isOn: Binding(
+                get: { isVisibleOnMap },
+                set: onToggleVisible
+            ))
+            .font(.caption)
+            .tint(.green)
         }
+        .padding(.vertical, 4)
     }
 }
 
@@ -154,8 +209,10 @@ struct MemberListRow: View {
     @State private var isTransferring = false
 
     // Doar adminul curent poate promova pe altcineva, și doar dacă acela nu e deja admin.
+    // Rolul se verifică pentru grupul ACTIV — member.groupId e mereu grupul activ aici,
+    // deoarece MemberListRow e folosit doar din lista deja filtrată pe activeGroupMembers.
     private var canPromote: Bool {
-        groupService.currentUserRole == "admin" && !isCurrentUser && !member.isAdmin
+        groupService.activeUserRole == "admin" && !isCurrentUser && !member.isAdmin
     }
 
     var body: some View {
@@ -230,9 +287,10 @@ struct MemberListRow: View {
 
     private func promote() async {
         isTransferring = true
-        let success = await groupService.transferAdmin(to: member.id)
-        if success, let groupId = groupService.currentGroup?.id {
-            await dataStore.loadMembers(groupId: groupId)
+        let groupId = member.groupId
+        let success = await groupService.transferAdmin(groupId: groupId, to: member.id)
+        if success {
+            await dataStore.refreshMembersAndPOIs()
         }
         isTransferring = false
     }

@@ -2,10 +2,18 @@ import SwiftUI
 
 @main
 struct FriendCampApp: App {
-    @State private var auth         = AuthService()
-    @State private var groupService = GroupService()
-    @State private var dataStore    = GroupDataStore()
-    @State private var prefs        = UserPreferencesService()
+    @State private var auth          = AuthService()
+    @State private var groupService  = GroupService()
+    @State private var dataStore     = GroupDataStore()
+    @State private var prefs         = UserPreferencesService()
+    @State private var mapVisibility = MapVisibilityPreferences()
+
+    // Grupurile ale căror membri/POI-uri se încarcă — vizibile pe hartă, plus grupul activ
+    // e mereu inclus implicit prin faptul că orice grup nou devine activ și vizibil.
+    // Set, nu Array — .task(id:) nu retrigger-uiește la simpla reordonare a myGroups.
+    private var visibleGroupIdsKey: Set<UUID> {
+        Set(groupService.myGroups.map(\.groupId).filter(mapVisibility.isVisible))
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -18,7 +26,7 @@ struct FriendCampApp: App {
                 } else if !groupService.hasChecked {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if groupService.currentGroup == nil {
+                } else if groupService.myGroups.isEmpty {
                     GroupOnboardingView()
                 } else {
                     ContentView()
@@ -28,8 +36,9 @@ struct FriendCampApp: App {
             .environment(groupService)
             .environment(dataStore)
             .environment(prefs)
+            .environment(mapVisibility)
             .animation(.easeInOut(duration: 0.3), value: auth.isAuthenticated)
-            .animation(.easeInOut(duration: 0.25), value: groupService.currentGroup?.id)
+            .animation(.easeInOut(duration: 0.25), value: groupService.myGroups.isEmpty)
             // Link-ul din emailul de confirmare deschide aplicația direct (friendcamp://auth-callback)
             .onOpenURL { url in
                 Task { await auth.handleAuthCallback(url: url) }
@@ -52,15 +61,21 @@ struct FriendCampApp: App {
                     groupService.reset()
                     dataStore.reset()
                     prefs.reset()
+                    mapVisibility.reset()
                     return
                 }
                 prefs.configure(userId: userId)
-                await groupService.loadCurrentGroup(userId: userId)
+                mapVisibility.configure(userId: userId)
+                await groupService.loadMyGroups(userId: userId)
             }
-            // Când grupul devine disponibil (după onboarding), încarcă datele
-            .task(id: groupService.currentGroup?.id) {
-                guard let groupId = groupService.currentGroup?.id else { return }
-                await dataStore.loadAll(groupId: groupId)
+            // Membri + POI-uri — multi-grup, urmăresc setul de grupuri vizibile pe hartă
+            .task(id: visibleGroupIdsKey) {
+                await dataStore.loadMembersAndPOIs(groupIds: Array(visibleGroupIdsKey))
+            }
+            // Blog + Cheltuieli — rămân legate de un singur grup activ
+            .task(id: groupService.activeGroupId) {
+                guard let groupId = groupService.activeGroupId else { return }
+                await dataStore.loadActiveGroupContent(groupId: groupId)
             }
         }
     }

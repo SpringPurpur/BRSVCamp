@@ -46,18 +46,7 @@ struct BlogPostRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header: prima poză dacă există, altfel gradient placeholder
-            Group {
-                if let firstPhoto = post.photos.first {
-                    AsyncImage(url: firstPhoto.url) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
-                    }
-                } else {
-                    LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
-                }
-            }
+            header
                 .frame(height: 120)
                 .frame(maxWidth: .infinity)
                 .clipped()
@@ -115,6 +104,37 @@ struct BlogPostRow: View {
         }
         .shadow(color: .black.opacity(0.07), radius: 6, y: 3)
     }
+
+    // Cu 2+ poze, headerul devine un TabView paginat — swipe stânga/dreapta parcurge pozele
+    // fără să deschidă postarea (gestul orizontal e capturat de TabView, nu de NavigationLink,
+    // care rămâne activ doar pentru un tap simplu). Cu 0-1 poze, rămâne o imagine statică,
+    // ca gestul de swipe să nu "fure" din scroll-ul vertical al listei fără niciun beneficiu.
+    @ViewBuilder
+    private var header: some View {
+        if post.photos.count > 1 {
+            TabView {
+                ForEach(post.photos) { photo in
+                    AsyncImage(url: photo.url) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.gray.opacity(0.15)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .always))
+            .indexViewStyle(.page(backgroundDisplayMode: .always))
+        } else if let firstPhoto = post.photos.first {
+            AsyncImage(url: firstPhoto.url) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+            }
+        } else {
+            LinearGradient(colors: post.headerColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
 }
 
 // MARK: - Post Detail
@@ -132,7 +152,7 @@ struct BlogPostDetailView: View {
     @State private var isDeleting = false
 
     private var canManage: Bool {
-        post.author.id == auth.currentUserId || groupService.currentUserRole == "admin"
+        post.author.id == auth.currentUserId || groupService.activeUserRole == "admin"
     }
 
     var body: some View {
@@ -261,7 +281,7 @@ struct BlogPostDetailView: View {
     }
 
     private func deletePost() async {
-        guard let groupId = groupService.currentGroup?.id else { return }
+        guard let groupId = groupService.activeGroupId else { return }
         isDeleting = true
         for photo in post.photos {
             _ = try? await supabase.storage.from("blog-photos").remove(paths: [photo.storagePath])

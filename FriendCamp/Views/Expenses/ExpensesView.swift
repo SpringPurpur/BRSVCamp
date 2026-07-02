@@ -227,7 +227,7 @@ struct ExpenseDetailSheet: View {
     @State private var isSettling = false
 
     private var canManage: Bool {
-        expense.paidBy.id == currentUserId || groupService.currentUserRole == "admin"
+        expense.paidBy.id == currentUserId || groupService.activeUserRole == "admin"
     }
 
     private var mySplit: ExpenseSplit? {
@@ -377,14 +377,14 @@ struct ExpenseDetailSheet: View {
             .update(payload)
             .eq("id", value: splitId.uuidString)
             .execute()
-        if let groupId = groupService.currentGroup?.id {
+        if let groupId = groupService.activeGroupId {
             await dataStore.loadExpenses(groupId: groupId)
         }
         isSettling = false
     }
 
     private func deleteExpense() async {
-        guard let groupId = groupService.currentGroup?.id else { return }
+        guard let groupId = groupService.activeGroupId else { return }
         isDeleting = true
         if expense.receiptURL != nil {
             let path = "\(expense.paidBy.id.uuidString)/\(expense.id.uuidString).jpg"

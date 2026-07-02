@@ -27,6 +27,8 @@ struct ExpenseCreateSheet: View {
     @State private var amountText: String
     @State private var category: ExpenseCategory
     @State private var date: Date
+    // Doar relevant în modul create — o cheltuială existentă își păstrează grupul din editing.
+    @State private var selectedGroupId: UUID?
     @State private var rows: [SplitRowState] = []
     @State private var photoItem: PhotosPickerItem?
     @State private var photoImage: UIImage?
@@ -59,6 +61,14 @@ struct ExpenseCreateSheet: View {
     private var isEditing: Bool {
         if case .edit = mode { return true }
         return false
+    }
+
+    // Editarea nu schimbă grupul unei cheltuieli existente — doar creare folosește picker-ul.
+    private var effectiveGroupId: UUID? {
+        switch mode {
+        case .create: return selectedGroupId ?? groupService.activeGroupId ?? groupService.myGroups.first?.groupId
+        case .edit:   return groupService.activeGroupId
+        }
     }
 
     // Doar plătitorul poate atinge poza de bon — RLS-ul de pe storage.objects pentru bucket-ul
@@ -94,6 +104,19 @@ struct ExpenseCreateSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if !isEditing {
+                    Section("Grup") {
+                        Picker("Grup", selection: Binding(
+                            get: { selectedGroupId ?? groupService.activeGroupId ?? groupService.myGroups.first?.groupId },
+                            set: { selectedGroupId = $0 }
+                        )) {
+                            ForEach(groupService.myGroups) { membership in
+                                Text(membership.group.name).tag(Optional(membership.groupId))
+                            }
+                        }
+                    }
+                }
+
                 Section("Detalii") {
                     TextField("Descriere", text: $description)
                     TextField("Sumă (RON)", text: $amountText)
@@ -175,6 +198,11 @@ struct ExpenseCreateSheet: View {
             }
             .task {
                 if rows.isEmpty { rows = buildInitialRows() }
+            }
+            .onChange(of: selectedGroupId) { _, _ in
+                // Doar în modul create — userul a schimbat grupul înainte de a salva,
+                // deci lista de participanți trebuie reconstruită pentru noul grup.
+                if !isEditing { rows = buildInitialRows() }
             }
             .onChange(of: photoItem) { _, newItem in
                 Task {
@@ -277,7 +305,7 @@ struct ExpenseCreateSheet: View {
         } else {
             existingSplits = []
         }
-        return dataStore.members.map { member in
+        return dataStore.members.filter { $0.groupId == effectiveGroupId }.map { member in
             if let split = existingSplits.first(where: { $0.member.id == member.id }) {
                 let pct = totalAmount > 0 ? (split.amount / totalAmount) * 100 : 0
                 return SplitRowState(
@@ -293,7 +321,7 @@ struct ExpenseCreateSheet: View {
 
     private func save() async {
         guard let userId = auth.currentUserId,
-              let groupId = groupService.currentGroup?.id else { return }
+              let groupId = effectiveGroupId else { return }
         isSaving = true
         errorMessage = nil
         let trimmedDescription = description.trimmingCharacters(in: .whitespaces)
@@ -388,7 +416,11 @@ struct ExpenseCreateSheet: View {
                 }
             }
 
-            await dataStore.loadExpenses(groupId: groupId)
+            // La fel ca la Blog — reîncarcă lista cheltuielilor grupului ACTIV, nu neapărat
+            // grupId-ul acestei cheltuieli.
+            if let activeId = groupService.activeGroupId {
+                await dataStore.loadExpenses(groupId: activeId)
+            }
             onDone()
         } catch {
             errorMessage = error.localizedDescription

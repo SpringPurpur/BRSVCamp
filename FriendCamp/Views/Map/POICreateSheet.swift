@@ -20,6 +20,8 @@ struct POICreateSheet: View {
     @State private var description: String
     @State private var category: String
     @State private var selectedColor: Color
+    // Doar relevant în modul create — un POI existent își păstrează grupul din editing.
+    @State private var selectedGroupId: UUID?
     @State private var photoItem: PhotosPickerItem?
     @State private var photoImage: UIImage?
     @State private var existingPhotoURL: URL?
@@ -55,6 +57,19 @@ struct POICreateSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if !isEditing {
+                    Section("Grup") {
+                        Picker("Grup", selection: Binding(
+                            get: { selectedGroupId ?? groupService.activeGroupId ?? groupService.myGroups.first?.groupId },
+                            set: { selectedGroupId = $0 }
+                        )) {
+                            ForEach(groupService.myGroups) { membership in
+                                Text(membership.group.name).tag(Optional(membership.groupId))
+                            }
+                        }
+                    }
+                }
+
                 Section("Detalii") {
                     TextField("Titlu", text: $title)
                     TextField("ex: Restaurant, Belvedere, Tabără...", text: $category)
@@ -133,8 +148,15 @@ struct POICreateSheet: View {
     }
 
     private func save() async {
-        guard let userId = auth.currentUserId,
-              let groupId = groupService.currentGroup?.id else { return }
+        guard let userId = auth.currentUserId else { return }
+        let groupId: UUID
+        switch mode {
+        case .create:
+            guard let gid = selectedGroupId ?? groupService.activeGroupId ?? groupService.myGroups.first?.groupId else { return }
+            groupId = gid
+        case .edit(let existing):
+            groupId = existing.groupId
+        }
         isSaving = true
         errorMessage = nil
         let trimmedCategory = category.trimmingCharacters(in: .whitespaces)
@@ -212,7 +234,7 @@ struct POICreateSheet: View {
                 }
             }
 
-            await dataStore.loadPOIs(groupId: groupId)
+            await dataStore.refreshMembersAndPOIs()
             onDone()
         } catch {
             errorMessage = error.localizedDescription

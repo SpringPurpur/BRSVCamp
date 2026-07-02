@@ -2,6 +2,12 @@ import SwiftUI
 
 struct GroupOnboardingView: View {
     @Environment(GroupService.self) private var groupService
+    @Environment(\.dismiss) private var dismiss
+
+    // false = comportamentul original, gate full-screen când userul n-are niciun grup încă.
+    // true = prezentat ca sheet din Profil, pentru alăturare/creare grup suplimentar.
+    var isPresentedAsSheet: Bool = false
+
     @State private var mode: Mode = .join
     @State private var groupName = ""
     @State private var inviteCode = ""
@@ -82,7 +88,14 @@ struct GroupOnboardingView: View {
                 }
                 .padding(.bottom, 32)
             }
-            .navigationBarHidden(true)
+            .navigationBarHidden(!isPresentedAsSheet)
+            .toolbar {
+                if isPresentedAsSheet {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Anulează") { dismiss() }
+                    }
+                }
+            }
         }
     }
 
@@ -90,6 +103,9 @@ struct GroupOnboardingView: View {
         switch mode {
         case .create: await groupService.createGroup(name: groupName.trimmingCharacters(in: .whitespaces))
         case .join:   await groupService.joinGroup(code: inviteCode)
+        }
+        if isPresentedAsSheet, groupService.error == nil {
+            dismiss()
         }
     }
 }

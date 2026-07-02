@@ -12,27 +12,43 @@ final class GroupDataStore {
     var expenses: [Expense]          = []
     var isLoading = false
 
-    // MARK: - Load all
+    // MARK: - Load (members/POIs sunt multi-grup — combină toate grupurile vizibile pe hartă;
+    // posts/expenses rămân legate de un singur "grup activ")
 
-    func loadAll(groupId: UUID) async {
+    private var lastLoadedGroupIds: [UUID] = []
+
+    func loadMembersAndPOIs(groupIds: [UUID]) async {
         await MainActor.run { isLoading = true }
+        lastLoadedGroupIds = groupIds
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.loadMembers(groupId: groupId) }
-            group.addTask { await self.loadPOIs(groupId: groupId) }
-            group.addTask { await self.loadPosts(groupId: groupId) }
-            group.addTask { await self.loadExpenses(groupId: groupId) }
+            group.addTask { await self.loadMembers(groupIds: groupIds) }
+            group.addTask { await self.loadPOIs(groupIds: groupIds) }
         }
         await MainActor.run { isLoading = false }
     }
 
+    // Refolosit după mutații locale (creare/ștergere POI) ca să nu recalculeze
+    // setul de grupuri vizibile la fiecare call site — reține ultimul folosit.
+    func refreshMembersAndPOIs() async {
+        await loadMembersAndPOIs(groupIds: lastLoadedGroupIds)
+    }
+
+    func loadActiveGroupContent(groupId: UUID) async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.loadPosts(groupId: groupId) }
+            group.addTask { await self.loadExpenses(groupId: groupId) }
+        }
+    }
+
     // MARK: - Members (group_member_status view)
 
-    func loadMembers(groupId: UUID) async {
+    func loadMembers(groupIds: [UUID]) async {
+        guard !groupIds.isEmpty else { await MainActor.run { members = [] }; return }
         do {
             let rows: [MemberStatusRow] = try await supabase
                 .from("group_member_status")
                 .select()
-                .eq("group_id", value: groupId.uuidString)
+                .in("group_id", values: groupIds.map(\.uuidString))
                 .execute()
                 .value
             let mapped = rows.map { GroupMember(from: $0) }
@@ -40,9 +56,9 @@ final class GroupDataStore {
         } catch { }
     }
 
-    func pollMembers(groupId: UUID) async {
+    func pollMembers(groupIds: [UUID]) async {
         while !Task.isCancelled {
-            await loadMembers(groupId: groupId)
+            await loadMembers(groupIds: groupIds)
             try? await Task.sleep(nanoseconds: 15_000_000_000)
         }
     }
@@ -50,29 +66,34 @@ final class GroupDataStore {
     // Actualizează membrii aproape instant la orice schimbare în user_locations,
     // în loc să aștepte până la 15s pentru următorul poll (necesită ca tabela
     // user_locations să fie adăugată la publicația supabase_realtime — vezi schema).
-    func subscribeToLocationUpdates(groupId: UUID) async {
-        let channel = supabase.channel("group-locations-\(groupId.uuidString)")
+    // Un singur channel cu filtru group_id IN (...) acoperă toate grupurile vizibile,
+    // în loc de un channel separat per grup.
+    func subscribeToLocationUpdates(groupIds: [UUID]) async {
+        guard !groupIds.isEmpty else { return }
+        let channelKey = groupIds.map(\.uuidString).sorted().joined(separator: "-")
+        let channel = supabase.channel("group-locations-\(channelKey)")
         let changes = channel.postgresChange(
             AnyAction.self,
             schema: "public",
             table: "user_locations",
-            filter: .eq("group_id", value: groupId.uuidString)
+            filter: .in("group_id", values: groupIds.map(\.uuidString))
         )
         try? await channel.subscribeWithError()
         for await _ in changes {
-            await loadMembers(groupId: groupId)
+            await loadMembers(groupIds: groupIds)
         }
         await supabase.removeChannel(channel)
     }
 
     // MARK: - POIs
 
-    func loadPOIs(groupId: UUID) async {
+    func loadPOIs(groupIds: [UUID]) async {
+        guard !groupIds.isEmpty else { await MainActor.run { pois = [] }; return }
         do {
             let rows: [POIRow] = try await supabase
                 .from("points_of_interest")
                 .select("*, profiles(display_name)")
-                .eq("group_id", value: groupId.uuidString)
+                .in("group_id", values: groupIds.map(\.uuidString))
                 .order("created_at", ascending: false)
                 .execute()
                 .value
@@ -144,6 +165,7 @@ final class GroupDataStore {
         pois     = []
         posts    = []
         expenses = []
+        lastLoadedGroupIds = []
     }
 }
 
@@ -162,7 +184,8 @@ private extension GroupMember {
             isOnline: row.isOnline ?? false,
             lastSeen: row.updatedAt ?? Date(),
             battery:  row.batteryLevel ?? 0,
-            isAdmin:  row.role == "admin"
+            isAdmin:  row.role == "admin",
+            groupId:  row.groupId
         )
     }
 }
@@ -179,7 +202,8 @@ private extension PointOfInterest {
             createdById: row.createdBy,
             date: row.createdAt,
             photoURL: row.photoURL.flatMap(URL.init(string:)),
-            pinColor: row.pinColor.map { Color(hex: $0) }
+            pinColor: row.pinColor.map { Color(hex: $0) },
+            groupId: row.groupId
         )
     }
 

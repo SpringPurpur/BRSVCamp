@@ -17,6 +17,7 @@ struct BlogComposeSheet: View {
 
     @State private var title: String
     @State private var content: String
+    @State private var selectedGroupId: UUID?
     @State private var selectedPOIId: UUID?
     @State private var existingPhotos: [BlogPhoto]
     @State private var photoItems: [PhotosPickerItem] = []
@@ -53,9 +54,36 @@ struct BlogComposeSheet: View {
         return false
     }
 
+    // Editarea nu schimbă grupul unei postări existente — doar creare foloseste picker-ul.
+    private var effectiveGroupId: UUID? {
+        switch mode {
+        case .create: return selectedGroupId ?? groupService.activeGroupId ?? groupService.myGroups.first?.groupId
+        case .edit:   return groupService.activeGroupId
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
+                if !isEditing {
+                    Section("Grup") {
+                        Picker("Grup", selection: Binding(
+                            get: { selectedGroupId ?? groupService.activeGroupId ?? groupService.myGroups.first?.groupId },
+                            set: { newValue in
+                                selectedGroupId = newValue
+                                // POI-ul legat trebuie să aparțină grupului nou selectat.
+                                if let selectedPOIId, !dataStore.pois.contains(where: { $0.id == selectedPOIId && $0.groupId == newValue }) {
+                                    self.selectedPOIId = nil
+                                }
+                            }
+                        )) {
+                            ForEach(groupService.myGroups) { membership in
+                                Text(membership.group.name).tag(Optional(membership.groupId))
+                            }
+                        }
+                    }
+                }
+
                 Section("Postare") {
                     TextField("Titlu", text: $title)
                     TextField("Conținut", text: $content, axis: .vertical)
@@ -65,15 +93,18 @@ struct BlogComposeSheet: View {
                 Section("Punct de interes (opțional)") {
                     Picker("Leagă de un loc", selection: $selectedPOIId) {
                         Text("Niciunul").tag(UUID?.none)
-                        ForEach(dataStore.pois) { poi in
+                        ForEach(dataStore.pois.filter { $0.groupId == effectiveGroupId }) { poi in
                             Text(poi.title).tag(Optional(poi.id))
                         }
                     }
                 }
 
                 Section("Fotografii (max \(BlogPost.maxPhotos))") {
+                    // PhotosPicker cu selecție multiplă, cuibărit într-un Menu, nu deschidea
+                    // galeria de fiabil (bug SwiftUI cunoscut) — folosit direct ca buton de
+                    // prim-nivel, pattern-ul recomandat de Apple, rezolvă problema.
                     if remainingSlots > 0 {
-                        Menu {
+                        HStack(spacing: 16) {
                             PhotosPicker(selection: $photoItems, maxSelectionCount: remainingSlots, matching: .images) {
                                 Label("Alege din galerie", systemImage: "photo.on.rectangle")
                             }
@@ -82,8 +113,6 @@ struct BlogComposeSheet: View {
                             } label: {
                                 Label("Fă o poză", systemImage: "camera")
                             }
-                        } label: {
-                            Label("Adaugă fotografii", systemImage: "photo")
                         }
                     }
 
@@ -184,7 +213,7 @@ struct BlogComposeSheet: View {
 
     private func save() async {
         guard let userId = auth.currentUserId,
-              let groupId = groupService.currentGroup?.id else { return }
+              let groupId = effectiveGroupId else { return }
         isSaving = true
         errorMessage = nil
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
@@ -242,7 +271,12 @@ struct BlogComposeSheet: View {
                 try await uploadNewPhotos(postId: existingPost.id, groupId: groupId, startingIndex: existingPhotos.count)
             }
 
-            await dataStore.loadPosts(groupId: groupId)
+            // Reîncarcă lista postărilor grupului ACTIV (ce se afișează în Blog), nu neapărat
+            // grupId-ul acestei postări — dacă userul a ales alt grup din picker la creare,
+            // lista afișată nu ar trebui să se schimbe.
+            if let activeId = groupService.activeGroupId {
+                await dataStore.loadPosts(groupId: activeId)
+            }
             onDone()
         } catch {
             errorMessage = error.localizedDescription

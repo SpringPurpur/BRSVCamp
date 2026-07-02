@@ -2,6 +2,15 @@ import Foundation
 import MapKit
 import SwiftUI
 
+// MARK: - My groups (userul poate face parte din mai multe simultan)
+
+struct MyGroupMembership: Identifiable {
+    let groupId: UUID
+    var role: String
+    var group: GroupRow
+    var id: UUID { groupId }
+}
+
 // MARK: - GroupMember
 
 struct GroupMember: Identifiable {
@@ -13,6 +22,9 @@ struct GroupMember: Identifiable {
     let lastSeen: Date
     let battery: Int
     let isAdmin: Bool
+    // Grupul din care face parte acest rând — necesar acum că dataStore.members poate
+    // combina membri din mai multe grupuri simultan (vizibile pe hartă).
+    let groupId: UUID
 
     var initials: String { String(name.prefix(1)) }
 
@@ -28,10 +40,10 @@ struct GroupMember: Identifiable {
     }
 
     init(id: UUID = UUID(), name: String, avatarColor: Color, coordinate: CLLocationCoordinate2D,
-         isOnline: Bool, lastSeen: Date, battery: Int, isAdmin: Bool = false) {
+         isOnline: Bool, lastSeen: Date, battery: Int, isAdmin: Bool = false, groupId: UUID = UUID()) {
         self.id = id; self.name = name; self.avatarColor = avatarColor
         self.coordinate = coordinate; self.isOnline = isOnline
-        self.lastSeen = lastSeen; self.battery = battery; self.isAdmin = isAdmin
+        self.lastSeen = lastSeen; self.battery = battery; self.isAdmin = isAdmin; self.groupId = groupId
     }
 }
 
@@ -48,6 +60,9 @@ struct PointOfInterest: Identifiable {
     let date: Date
     let photoURL: URL?
     let pinColor: Color?
+    // La fel ca la GroupMember — necesar pentru filtrare/atribuire acum că lista de POI-uri
+    // de pe hartă poate combina mai multe grupuri vizibile simultan.
+    let groupId: UUID
 
     // Iconiță unică pentru toate POI-urile — categoria e text liber, nu mai poate fi
     // mapată automat la o iconiță specifică. Culoarea rămâne personalizabilă (pinColor).
@@ -59,11 +74,11 @@ struct PointOfInterest: Identifiable {
 
     init(id: UUID = UUID(), title: String, description: String, coordinate: CLLocationCoordinate2D,
          category: String, createdBy: String, createdById: UUID = UUID(), date: Date,
-         photoURL: URL? = nil, pinColor: Color? = nil) {
+         photoURL: URL? = nil, pinColor: Color? = nil, groupId: UUID = UUID()) {
         self.id = id; self.title = title; self.description = description
         self.coordinate = coordinate; self.category = category
         self.createdBy = createdBy; self.createdById = createdById
-        self.date = date; self.photoURL = photoURL; self.pinColor = pinColor
+        self.date = date; self.photoURL = photoURL; self.pinColor = pinColor; self.groupId = groupId
     }
 }
 
