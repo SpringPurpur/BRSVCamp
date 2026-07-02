@@ -323,6 +323,39 @@ $$;
 > Necesar ca `security definer` pentru că `group_members` nu are policy de INSERT direct (vezi secțiunea 4) — singurele căi de a deveni membru sunt `create_group` (la creare) și `join_group_by_code` (la alăturare).
 > Apelat din Swift: `supabase.rpc("create_group", params: ["p_name": name])`
 
+### `transfer_admin` — predă rolul de admin altui membru (un singur admin per grup)
+
+```sql
+create or replace function transfer_admin(p_new_admin_id uuid)
+returns void
+language plpgsql security definer as $$
+declare
+  v_group_id uuid;
+begin
+  select group_id into v_group_id
+  from group_members
+  where user_id = auth.uid() and role = 'admin';
+
+  if v_group_id is null then
+    raise exception 'Doar adminul poate transfera rolul.';
+  end if;
+
+  if not exists (
+    select 1 from group_members
+    where group_id = v_group_id and user_id = p_new_admin_id
+  ) then
+    raise exception 'Userul nu face parte din acest grup.';
+  end if;
+
+  update group_members set role = 'member' where group_id = v_group_id and user_id = auth.uid();
+  update group_members set role = 'admin'  where group_id = v_group_id and user_id = p_new_admin_id;
+end;
+$$;
+```
+
+> Cele două `update`-uri rulează în aceeași tranzacție (funcția întreagă e o singură tranzacție implicită) — nu există fereastră în care grupul are 0 sau 2 admini. Validează server-side că apelantul chiar e adminul curent, nu se bazează doar pe faptul că butonul e ascuns în UI.
+> Apelat din Swift: `supabase.rpc("transfer_admin", params: ["p_new_admin_id": userId.uuidString])` (vezi `GroupService.transferAdmin(to:)`).
+
 ### `generate_invite_code` — generat la creare grup
 
 ```sql
@@ -680,6 +713,7 @@ select
   p.id            as user_id,
   p.display_name,
   p.avatar_color,
+  gm.role,
   ul.latitude,
   ul.longitude,
   ul.battery_level,
