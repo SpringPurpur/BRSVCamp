@@ -47,7 +47,12 @@ struct MapView: View {
 
     @State private var vm = MapViewModel()
     @State private var locationService = LocationService()
+    @State private var networkMonitor = NetworkMonitor()
     @State private var hasCenteredOnUser = false
+    // Sursa de tile-uri urmează conectivitatea DOAR o dată, la deschiderea hărții — după
+    // aceea userul comută liber din meniu, fără să fie suprascris la schimbări de rețea.
+    @State private var tileSource: MapTileSource = .apple
+    @State private var hasSetInitialTileSource = false
     // Urmărit continuu cât timp harta e vizibilă, ca la activarea modului de plasare
     // să existe deja o coordonată validă fără să aștepte primul eveniment de cameră.
     @State private var mapCenterCoordinate = CLLocationCoordinate2D(latitude: 45.9440, longitude: 24.9675)
@@ -89,6 +94,7 @@ struct MapView: View {
                     pois: dataStore.pois,
                     isMultiGroup: groupService.myGroups.count > 1,
                     mapCache: mapCache,
+                    tileSource: tileSource,
                     centerRequest: $centerRequest,
                     onSelectMember: { vm.selectedMember = $0 },
                     onSelectPOI: { vm.selectedPOI = $0 },
@@ -104,6 +110,10 @@ struct MapView: View {
                     // acordat permisiunea în trecut), .onChange de mai jos nu se declanșează
                     // niciodată — hasLocation e true încă de la primul render, nu doar "devine" true.
                     centerOnUserIfNeeded()
+                    if !hasSetInitialTileSource {
+                        hasSetInitialTileSource = true
+                        tileSource = networkMonitor.isConnected ? .apple : .openStreetMap
+                    }
                 }
                 .onChange(of: locationService.hasLocation) { _, _ in
                     centerOnUserIfNeeded()
@@ -112,15 +122,17 @@ struct MapView: View {
                     Task { await uploadHeartbeat() }
                 }
 
-                // Atribuire obligatorie conform politicii OpenStreetMap pentru tile-uri gratuite.
-                Text("© OpenStreetMap contributors")
-                    .font(.caption2)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .padding(.bottom, 70)
-                    .padding(.trailing, 8)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                if tileSource == .openStreetMap {
+                    // Atribuire obligatorie conform politicii OpenStreetMap pentru tile-uri gratuite.
+                    Text("© OpenStreetMap contributors")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.bottom, 70)
+                        .padding(.trailing, 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                }
 
                 if offlineDownload.isDownloading {
                     VStack(spacing: 4) {
@@ -174,14 +186,40 @@ struct MapView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        prepareDownload()
+                    Menu {
+                        Section("Sursă hartă") {
+                            Button {
+                                tileSource = .apple
+                            } label: {
+                                if tileSource == .apple {
+                                    Label("Apple Maps", systemImage: "checkmark")
+                                } else {
+                                    Text("Apple Maps")
+                                }
+                            }
+                            Button {
+                                tileSource = .openStreetMap
+                            } label: {
+                                if tileSource == .openStreetMap {
+                                    Label("OpenStreetMap", systemImage: "checkmark")
+                                } else {
+                                    Text("OpenStreetMap")
+                                }
+                            }
+                        }
+                        Button {
+                            // Descărcarea are sens doar cu overlay-ul OSM activ.
+                            tileSource = .openStreetMap
+                            prepareDownload()
+                        } label: {
+                            Label("Descarcă zona vizibilă pentru offline", systemImage: "arrow.down.circle")
+                        }
+                        .disabled(offlineDownload.isDownloading)
                     } label: {
-                        Image(systemName: offlineDownload.isDownloading ? "arrow.down.circle.fill" : "arrow.down.circle")
+                        Image(systemName: "map")
                             .font(.title3)
                             .symbolRenderingMode(.hierarchical)
                     }
-                    .disabled(offlineDownload.isDownloading)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

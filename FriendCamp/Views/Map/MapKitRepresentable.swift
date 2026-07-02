@@ -1,6 +1,55 @@
 import SwiftUI
 import MapKit
 import MapCache
+import CachingMapKitTileOverlay
+
+// MARK: - Tile source
+
+enum MapTileSource {
+    case apple
+    case openStreetMap
+}
+
+// MARK: - Adaptor: pune cache-ul de disc al MapCache în spatele randării anti-flicker a
+// pachetului Stadia. MapCache.CachedTileOverlayRenderer nu face nimic special în afara
+// overzoom-ului peste maximumZ (verificat în sursă) — pentru zoom normal cade pe randarea
+// stock MKTileOverlayRenderer a Apple, care arată tile-uri goale până se încarcă, fără
+// fallback vizual. CachingTileOverlayRenderer (Stadia) desenează un tile de zoom inferior
+// (până la 2 nivele), decupat/scalat, cât timp tile-ul corect se încarcă din cache/rețea.
+final class CachingMapCacheOverlay: MKTileOverlay, CachingTileOverlay {
+    let mapCache: MapCache
+
+    init(mapCache: MapCache) {
+        self.mapCache = mapCache
+        super.init(urlTemplate: mapCache.config.urlTemplate)
+        canReplaceMapContent = true
+        if mapCache.config.maximumZ > 0 { maximumZ = mapCache.config.maximumZ }
+        if mapCache.config.minimumZ > 0 { minimumZ = mapCache.config.minimumZ }
+        tileSize = mapCache.config.tileSize
+    }
+
+    // Trebuie să răspundă rapid, sincron — citire directă de pe disc, fără rețea.
+    func cachedData(at path: MKTileOverlayPath) -> Data? {
+        var result: Data?
+        mapCache.diskCache.fetchDataSync(forKey: mapCache.cacheKey(forPath: path), success: { result = $0 })
+        return result
+    }
+
+    // Punte peste API-ul completion-handler al MapCache — scrie automat în același disk cache.
+    // MKTileOverlay declară deja acest async overload (peste loadTile(at:result:)) — de aceea
+    // e nevoie de `override` aici, nu doar conformare la protocolul CachingTileOverlay.
+    override func loadTile(at path: MKTileOverlayPath) async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            mapCache.loadTile(at: path) { data, error in
+                if let data {
+                    continuation.resume(returning: data)
+                } else {
+                    continuation.resume(throwing: error ?? URLError(.unknown))
+                }
+            }
+        }
+    }
+}
 
 // MARK: - Annotations
 
@@ -86,6 +135,7 @@ struct MapKitMapView: UIViewRepresentable {
     let pois: [PointOfInterest]
     let isMultiGroup: Bool
     let mapCache: MapCache
+    let tileSource: MapTileSource
     @Binding var centerRequest: CLLocationCoordinate2D?
     let onSelectMember: (GroupMember) -> Void
     let onSelectPOI: (PointOfInterest) -> Void
@@ -108,7 +158,6 @@ struct MapKitMapView: UIViewRepresentable {
         mapView.showsUserLocation = false
         // Tile-uri raster plate (OSM) — un tilt 3D nu ar avea niciun conținut de arătat.
         mapView.isPitchEnabled = false
-        mapView.useCache(mapCache)
         mapView.setRegion(Self.initialRegion, animated: false)
         return mapView
     }
@@ -116,6 +165,7 @@ struct MapKitMapView: UIViewRepresentable {
     func updateUIView(_ mapView: MKMapView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.syncAnnotations(on: mapView)
+        context.coordinator.syncTileSource(on: mapView)
         if let coord = centerRequest {
             let region = MKCoordinateRegion(center: coord, span: mapView.region.span)
             mapView.setRegion(region, animated: true)
@@ -127,9 +177,26 @@ struct MapKitMapView: UIViewRepresentable {
         var parent: MapKitMapView
         private var memberAnnotations: [UUID: MemberAnnotation] = [:]
         private var poiAnnotations: [UUID: POIAnnotation] = [:]
+        private var osmOverlay: CachingMapCacheOverlay?
 
         init(_ parent: MapKitMapView) {
             self.parent = parent
+        }
+
+        // Adaugă/elimină overlay-ul OSM ca să comute vizual instant între harta Apple
+        // (fără overlay, dedesubt) și tile-urile OpenStreetMap cache-uite.
+        func syncTileSource(on mapView: MKMapView) {
+            switch parent.tileSource {
+            case .openStreetMap:
+                guard osmOverlay == nil else { return }
+                let overlay = CachingMapCacheOverlay(mapCache: parent.mapCache)
+                osmOverlay = overlay
+                mapView.addOverlay(overlay, level: .aboveLabels)
+            case .apple:
+                guard let overlay = osmOverlay else { return }
+                mapView.removeOverlay(overlay)
+                osmOverlay = nil
+            }
         }
 
         // Diff pe id, nu remove-all/add-all — anotările existente doar își actualizează
@@ -183,7 +250,10 @@ struct MapKitMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            mapView.mapCacheRenderer(forOverlay: overlay)
+            if let cachingOverlay = overlay as? CachingMapCacheOverlay {
+                return CachingTileOverlayRenderer(overlay: cachingOverlay)
+            }
+            return MKOverlayRenderer(overlay: overlay)
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
