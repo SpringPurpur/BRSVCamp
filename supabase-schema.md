@@ -713,18 +713,20 @@ select
   p.id            as user_id,
   p.display_name,
   p.avatar_color,
-  gm.role,
   ul.latitude,
   ul.longitude,
   ul.battery_level,
   (ul.updated_at is not null and ul.updated_at > now() - interval '2 minutes') as is_online,
-  ul.updated_at
+  ul.updated_at,
+  gm.role
 from group_members gm
 join profiles p
   on p.id = gm.user_id
 left join user_locations ul
   on ul.user_id = gm.user_id and ul.group_id = gm.group_id;
 ```
+
+> `role` e adăugat la finalul listei de coloane, nu inserat în mijloc — `create or replace view` respinge cu eroarea `cannot change name of view column` dacă o coloană nouă schimbă poziția celor existente (Postgres o interpretează ca o redenumire). Ordinea coloanelor în SQL nu contează pentru decodarea din Swift (JSON e potrivit după nume de cheie, nu poziție), deci mutarea e sigură.
 
 > `security_invoker = true` (Postgres 15+) — view-ul respectă RLS-ul tabelelor de bază în funcție de utilizatorul care interoghează, nu de proprietarul view-ului. Practic, un user vede doar membrii grupurilor din care face parte, exact ca la interogarea directă a `group_members`.
 > `left join` pe `user_locations` — un membru nou, care nu a trimis încă nicio locație, tot apare în listă (cu `latitude`/`longitude`/`battery_level`/`is_online` = `null`).
