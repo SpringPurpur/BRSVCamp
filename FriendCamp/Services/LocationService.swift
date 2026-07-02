@@ -22,6 +22,10 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         authorizationStatus = manager.authorizationStatus
+        // manager.location oferă instant ultima poziție cunoscută din cache (dacă userul a mai
+        // acordat permisiunea), fără să aștepte primul callback async de la startUpdatingLocation —
+        // evită flash-ul regiunii hardcodate la redeschiderea aplicației.
+        userLocation = manager.location?.coordinate
     }
 
     func requestPermission() {

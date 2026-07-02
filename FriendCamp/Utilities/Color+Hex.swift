@@ -18,3 +18,18 @@ extension Color {
         return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 }
+
+extension UUID {
+    // Culoare stabilă derivată din UUID (nu din poziția în listă, care se poate reordona) —
+    // folosită ca inel distinctiv pentru membrii/pinii unui grup atunci când harta arată
+    // conținut din mai multe grupuri simultan.
+    var groupAccentColor: Color {
+        // NU folosim hashValue — Swift randomizează seed-ul de hashing per proces, deci
+        // ar da o culoare diferită la fiecare lansare a aplicației. Bytes-urile UUID-ului
+        // în sine sunt however stabile.
+        let palette: [Color] = [.blue, .purple, .orange, .pink, .teal, .indigo, .brown, .mint]
+        let bytes = self.uuid
+        let sum = Int(bytes.0) + Int(bytes.1) + Int(bytes.2) + Int(bytes.3)
+        return palette[sum % palette.count]
+    }
+}
