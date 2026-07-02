@@ -7,6 +7,7 @@ struct FriendCampApp: App {
     @State private var dataStore     = GroupDataStore()
     @State private var prefs         = UserPreferencesService()
     @State private var mapVisibility = MapVisibilityPreferences()
+    @State private var theme         = ThemePreferences()
 
     // Grupurile ale căror membri/POI-uri se încarcă — vizibile pe hartă, plus grupul activ
     // e mereu inclus implicit prin faptul că orice grup nou devine activ și vizibil.
@@ -37,6 +38,11 @@ struct FriendCampApp: App {
             .environment(dataStore)
             .environment(prefs)
             .environment(mapVisibility)
+            .environment(theme)
+            // Aplicat la nivelul cel mai exterior — inclusiv AuthView/GroupOnboardingView,
+            // nu doar ContentView, ca tema să se vadă și înainte de autentificare.
+            .preferredColorScheme(theme.appearanceMode.colorScheme)
+            .tint(theme.accentColor)
             .animation(.easeInOut(duration: 0.3), value: auth.isAuthenticated)
             .animation(.easeInOut(duration: 0.25), value: groupService.myGroups.isEmpty)
             // Link-ul din emailul de confirmare deschide aplicația direct (friendcamp://auth-callback)

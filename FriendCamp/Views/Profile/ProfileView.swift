@@ -6,6 +6,7 @@ struct ProfileView: View {
     @Environment(GroupDataStore.self)          private var dataStore
     @Environment(UserPreferencesService.self)  private var prefs
     @Environment(MapVisibilityPreferences.self) private var mapVisibility
+    @Environment(ThemePreferences.self) private var theme
 
     @State private var showAddGroupSheet = false
 
@@ -74,6 +75,10 @@ struct ProfileView: View {
                 }
 
                 Section {
+                    NavigationLink(destination: AppearanceSettingsView(theme: theme)) {
+                        Label("Aspect", systemImage: "paintbrush.fill")
+                            .labelStyle(ColoredIconLabelStyle(color: .purple))
+                    }
                     NavigationLink(destination: PrivacySettingsView(prefsService: prefs)) {
                         Label("Confidențialitate", systemImage: "hand.raised.fill")
                             .labelStyle(ColoredIconLabelStyle(color: .blue))
