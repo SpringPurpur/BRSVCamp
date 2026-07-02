@@ -2,6 +2,7 @@ import SwiftUI
 import MapKit
 import Observation
 import Supabase
+import MapCache
 
 // MARK: - ViewModel (UI state only — date reale vin din GroupDataStore)
 
@@ -9,15 +10,30 @@ import Supabase
 final class MapViewModel {
     var selectedMember: GroupMember?
     var selectedPOI: PointOfInterest?
-    var cameraPosition = MapCameraPosition.region(
-        MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 45.9440, longitude: 24.9675),
-            span: MKCoordinateSpan(latitudeDelta: 0.018, longitudeDelta: 0.018)
-        )
-    )
     // Plasare POI: userul apasă +, apoi atinge harta pentru a alege poziția
     var isPlacingPOI = false
     var pendingPOICoordinate: CLLocationCoordinate2D?
+}
+
+// MARK: - Progres descărcare hartă offline
+
+// RegionDownloaderDelegate e apelat de pe un DispatchQueue de fundal (nu Swift Concurrency) —
+// sărim explicit pe main thread înainte să mutăm proprietăți @Observable.
+@Observable
+final class OfflineDownloadState: NSObject, RegionDownloaderDelegate {
+    var progress: Double = 0
+    var isDownloading = false
+
+    func regionDownloader(_ regionDownloader: RegionDownloader, didDownloadPercentage percentage: Double) {
+        DispatchQueue.main.async { self.progress = percentage / 100 }
+    }
+
+    func regionDownloader(_ regionDownloader: RegionDownloader, didFinishDownload tilesDownloaded: TileNumber) {
+        DispatchQueue.main.async {
+            self.isDownloading = false
+            self.progress = 1
+        }
+    }
 }
 
 // MARK: - MapView
@@ -27,6 +43,7 @@ struct MapView: View {
     @Environment(GroupService.self)   private var groupService
     @Environment(AuthService.self)    private var auth
     @Environment(UserPreferencesService.self) private var prefs
+    @Environment(MapVisibilityPreferences.self) private var mapVisibility
 
     @State private var vm = MapViewModel()
     @State private var locationService = LocationService()
@@ -34,43 +51,89 @@ struct MapView: View {
     // Urmărit continuu cât timp harta e vizibilă, ca la activarea modului de plasare
     // să existe deja o coordonată validă fără să aștepte primul eveniment de cameră.
     @State private var mapCenterCoordinate = CLLocationCoordinate2D(latitude: 45.9440, longitude: 24.9675)
+    @State private var lastKnownRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 45.9440, longitude: 24.9675),
+        span: MKCoordinateSpan(latitudeDelta: 0.018, longitudeDelta: 0.018)
+    )
+    // Setat de MapKitMapView pentru a centra o singură dată — MapKitMapView îl resetează
+    // la nil imediat după ce aplică centrarea.
+    @State private var centerRequest: CLLocationCoordinate2D?
+
+    // Instanță unică, ținută aici (nu în MapKitMapView, care e reconstruit la fiecare
+    // redraw) — atât randarea cât și descărcarea explicită de regiune scriu în același cache.
+    @State private var mapCache = MapCache(withConfig: {
+        var config = MapCacheConfig()
+        config.capacity = 300 * 1024 * 1024
+        return config
+    }())
+    @State private var offlineDownload = OfflineDownloadState()
+    @State private var pendingDownloader: RegionDownloader?
+    @State private var showDownloadConfirm = false
+
+    // Grupurile arătate pe hartă — folosite pentru poll/realtime, ca să nu se mai facă
+    // query pentru grupurile pe care userul le-a ascuns explicit din Profil.
+    private var visibleGroupIds: Set<UUID> {
+        Set(groupService.myGroups.map(\.groupId).filter(mapVisibility.isVisible))
+    }
+    // Heartbeat-ul merge către TOATE grupurile, indiferent de vizibilitate — toggle-ul e
+    // local/cosmetic ("ce văd eu"), nu ar trebui să te facă invizibil colegilor din acel grup.
+    private var allGroupIds: Set<UUID> {
+        Set(groupService.myGroups.map(\.groupId))
+    }
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                Map(position: $vm.cameraPosition) {
-                    ForEach(dataStore.members) { member in
-                        Annotation(member.name, coordinate: member.coordinate, anchor: .bottom) {
-                            MemberMapPin(member: member)
-                                .onTapGesture { vm.selectedMember = member }
-                        }
+                MapKitMapView(
+                    members: dataStore.members,
+                    pois: dataStore.pois,
+                    isMultiGroup: groupService.myGroups.count > 1,
+                    mapCache: mapCache,
+                    centerRequest: $centerRequest,
+                    onSelectMember: { vm.selectedMember = $0 },
+                    onSelectPOI: { vm.selectedPOI = $0 },
+                    onRegionChange: { region in
+                        mapCenterCoordinate = region.center
+                        lastKnownRegion = region
                     }
-                    ForEach(dataStore.pois) { poi in
-                        Annotation(poi.title, coordinate: poi.coordinate, anchor: .bottom) {
-                            POIMapPin(poi: poi)
-                                .onTapGesture { vm.selectedPOI = poi }
-                        }
-                    }
-                }
-                .mapStyle(.standard(elevation: .realistic))
-                .onMapCameraChange(frequency: .continuous) { context in
-                    mapCenterCoordinate = context.region.center
-                }
+                )
                 .ignoresSafeArea(edges: .top)
-                .onAppear { locationService.requestPermission() }
-                .onChange(of: locationService.hasLocation) { _, hasLocation in
-                    guard hasLocation, !hasCenteredOnUser,
-                          let coord = locationService.userLocation else { return }
-                    hasCenteredOnUser = true
-                    withAnimation {
-                        vm.cameraPosition = .region(MKCoordinateRegion(
-                            center: coord,
-                            span: MKCoordinateSpan(latitudeDelta: 0.018, longitudeDelta: 0.018)
-                        ))
-                    }
+                .onAppear {
+                    locationService.requestPermission()
+                    // Dacă LocationService a pornit deja cu o poziție din cache (userul a mai
+                    // acordat permisiunea în trecut), .onChange de mai jos nu se declanșează
+                    // niciodată — hasLocation e true încă de la primul render, nu doar "devine" true.
+                    centerOnUserIfNeeded()
+                }
+                .onChange(of: locationService.hasLocation) { _, _ in
+                    centerOnUserIfNeeded()
                 }
                 .onChange(of: locationService.userLocation) { _, _ in
                     Task { await uploadHeartbeat() }
+                }
+
+                // Atribuire obligatorie conform politicii OpenStreetMap pentru tile-uri gratuite.
+                Text("© OpenStreetMap contributors")
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.bottom, 70)
+                    .padding(.trailing, 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+
+                if offlineDownload.isDownloading {
+                    VStack(spacing: 4) {
+                        ProgressView(value: offlineDownload.progress)
+                        Text("Descărcare hartă offline… \(Int(offlineDownload.progress * 100))%")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal, 40)
+                    .padding(.top, 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
 
                 if vm.isPlacingPOI {
@@ -92,7 +155,7 @@ struct MapView: View {
                     .padding(.bottom, 12)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 } else {
-                    MemberStatusBar(members: dataStore.members) { member in
+                    MemberStatusBar(members: dataStore.members, groupService: groupService) { member in
                         vm.selectedMember = member
                     }
                 }
@@ -102,19 +165,23 @@ struct MapView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        guard let coord = locationService.userLocation else { return }
-                        withAnimation {
-                            vm.cameraPosition = .region(MKCoordinateRegion(
-                                center: coord,
-                                span: MKCoordinateSpan(latitudeDelta: 0.018, longitudeDelta: 0.018)
-                            ))
-                        }
+                        centerOnUser()
                     } label: {
                         Image(systemName: locationService.hasLocation
                               ? "location.fill" : "location.slash")
                             .font(.title3)
                             .symbolRenderingMode(.hierarchical)
                     }
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        prepareDownload()
+                    } label: {
+                        Image(systemName: offlineDownload.isDownloading ? "arrow.down.circle.fill" : "arrow.down.circle")
+                            .font(.title3)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .disabled(offlineDownload.isDownloading)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -127,20 +194,31 @@ struct MapView: View {
                     }
                 }
             }
+            .confirmationDialog(
+                "Descarcă zona vizibilă pentru offline?",
+                isPresented: $showDownloadConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Descarcă") { startDownload() }
+                Button("Anulează", role: .cancel) { pendingDownloader = nil }
+            } message: {
+                if let pendingDownloader {
+                    Text("Aproximativ \(ByteCountFormatter.string(fromByteCount: Int64(pendingDownloader.estimateRegionByteSize()), countStyle: .file)) — rămâne disponibilă offline pe acest telefon.")
+                }
+            }
         }
         // Polling membri la fiecare 15s — fallback dacă Realtime pică (reconectare, background)
-        .task(id: groupService.currentGroup?.id) {
-            guard let groupId = groupService.currentGroup?.id else { return }
-            await dataStore.pollMembers(groupId: groupId)
+        .task(id: visibleGroupIds) {
+            await dataStore.pollMembers(groupIds: Array(visibleGroupIds))
         }
         // Realtime — actualizează membrii aproape instant la orice update de locație
-        .task(id: groupService.currentGroup?.id) {
-            guard let groupId = groupService.currentGroup?.id else { return }
-            await dataStore.subscribeToLocationUpdates(groupId: groupId)
+        .task(id: visibleGroupIds) {
+            await dataStore.subscribeToLocationUpdates(groupIds: Array(visibleGroupIds))
         }
         // Heartbeat: retrimite locația + bateria la fiecare 20s, chiar dacă userul stă pe loc,
         // altfel is_online/bateria rămân înghețate la ultima valoare din momentul primului fix GPS.
-        .task(id: groupService.currentGroup?.id) {
+        // Merge la toate grupurile (nu doar cele vizibile pe hartă), vezi allGroupIds mai sus.
+        .task(id: allGroupIds) {
             while !Task.isCancelled {
                 await uploadHeartbeat()
                 try? await Task.sleep(nanoseconds: 20_000_000_000)
@@ -162,16 +240,60 @@ struct MapView: View {
         }
     }
 
+    private func centerOnUser() {
+        guard let coord = locationService.userLocation else { return }
+        // MapKitMapView aplică setRegion(animated: true) și păstrează span-ul curent al hărții.
+        centerRequest = coord
+    }
+
+    // Centrează o singură dată, automat, la deschiderea hărții — apoi userul rămâne liber
+    // să navigheze fără să fie re-centrat la fiecare update de poziție.
+    private func centerOnUserIfNeeded() {
+        guard !hasCenteredOnUser, locationService.userLocation != nil else { return }
+        hasCenteredOnUser = true
+        centerOnUser()
+    }
+
+    // Zoom 13...17 acoperă o zonă de câțiva km — suficient pentru o zonă de camping fixă,
+    // fără să încerce să descarce tot globul dacă userul a dat zoom out prea mult.
+    private var downloadTileRegion: TileCoordsRegion? {
+        let region = lastKnownRegion
+        return TileCoordsRegion(
+            topLeftLatitude: region.center.latitude + region.span.latitudeDelta / 2,
+            topLeftLongitude: region.center.longitude - region.span.longitudeDelta / 2,
+            bottomRightLatitude: region.center.latitude - region.span.latitudeDelta / 2,
+            bottomRightLongitude: region.center.longitude + region.span.longitudeDelta / 2,
+            minZoom: 13,
+            maxZoom: 17
+        )
+    }
+
+    private func prepareDownload() {
+        guard let region = downloadTileRegion else { return }
+        let downloader = RegionDownloader(forRegion: region, mapCache: mapCache)
+        downloader.delegate = offlineDownload
+        pendingDownloader = downloader
+        showDownloadConfirm = true
+    }
+
+    private func startDownload() {
+        guard let downloader = pendingDownloader else { return }
+        offlineDownload.isDownloading = true
+        offlineDownload.progress = 0
+        downloader.start()
+    }
+
     private func uploadHeartbeat() async {
         guard let coord = locationService.userLocation,
               prefs.preferences.shareLocation,
-              let userId = auth.currentUserId,
-              let groupId = groupService.currentGroup?.id else { return }
+              let userId = auth.currentUserId else { return }
         UIDevice.current.isBatteryMonitoringEnabled = true
         let battery = UIDevice.current.batteryLevel
         let batteryPct = battery >= 0 ? Int(battery * 100) : nil
-        await dataStore.uploadLocation(userId: userId, groupId: groupId,
-                                        coordinate: coord, batteryPercent: batteryPct)
+        for membership in groupService.myGroups {
+            await dataStore.uploadLocation(userId: userId, groupId: membership.groupId,
+                                            coordinate: coord, batteryPercent: batteryPct)
+        }
     }
 }
 
@@ -179,13 +301,14 @@ struct MapView: View {
 
 struct MemberMapPin: View {
     let member: GroupMember
+    var ringColor: Color = .white
 
     var body: some View {
         ZStack {
             Circle()
                 .fill(member.avatarColor.gradient)
                 .frame(width: 44, height: 44)
-                .overlay(Circle().stroke(.white, lineWidth: 2.5))
+                .overlay(Circle().stroke(ringColor, lineWidth: 2.5))
                 .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
             Text(member.initials)
                 .font(.system(size: 17, weight: .bold))
@@ -240,14 +363,26 @@ struct PlacingPOIConfirmBar: View {
 
 struct MemberStatusBar: View {
     let members: [GroupMember]
+    let groupService: GroupService
     let onTap: (GroupMember) -> Void
+
+    private var isMultiGroup: Bool { groupService.myGroups.count > 1 }
+
+    private func groupName(for groupId: UUID) -> String? {
+        guard isMultiGroup else { return nil }
+        return groupService.myGroups.first { $0.groupId == groupId }?.group.name
+    }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(members) { member in
-                    MemberChip(member: member)
-                        .onTapGesture { onTap(member) }
+                    MemberChip(
+                        member: member,
+                        ringColor: isMultiGroup ? member.groupId.groupAccentColor : .white,
+                        groupName: groupName(for: member.groupId)
+                    )
+                    .onTapGesture { onTap(member) }
                 }
             }
             .padding(.horizontal, 16)
@@ -259,12 +394,15 @@ struct MemberStatusBar: View {
 
 struct MemberChip: View {
     let member: GroupMember
+    var ringColor: Color = .white
+    var groupName: String? = nil
 
     var body: some View {
         HStack(spacing: 8) {
             Circle()
                 .fill(member.avatarColor.gradient)
                 .frame(width: 32, height: 32)
+                .overlay(Circle().stroke(ringColor, lineWidth: 2))
                 .overlay {
                     Text(member.initials)
                         .font(.caption.bold())
@@ -283,6 +421,11 @@ struct MemberChip: View {
                     Text(member.isOnline ? "Live" : timeAgo(member.lastSeen))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                    if let groupName {
+                        Text("· \(groupName)")
+                            .font(.caption2)
+                            .foregroundStyle(ringColor)
+                    }
                 }
             }
 
@@ -312,6 +455,14 @@ struct MemberChip: View {
 struct MemberDetailSheet: View {
     let member: GroupMember
     @Environment(\.dismiss) private var dismiss
+    @Environment(GroupService.self) private var groupService
+
+    private var isMultiGroup: Bool { groupService.myGroups.count > 1 }
+    private var ringColor: Color { isMultiGroup ? member.groupId.groupAccentColor : .white }
+    private var groupName: String? {
+        guard isMultiGroup else { return nil }
+        return groupService.myGroups.first { $0.groupId == member.groupId }?.group.name
+    }
 
     var body: some View {
         NavigationStack {
@@ -319,7 +470,7 @@ struct MemberDetailSheet: View {
                 Circle()
                     .fill(member.avatarColor.gradient)
                     .frame(width: 88, height: 88)
-                    .overlay(Circle().stroke(.white, lineWidth: 3))
+                    .overlay(Circle().stroke(ringColor, lineWidth: 3))
                     .shadow(radius: 8)
                     .overlay {
                         Text(member.initials)
@@ -327,13 +478,20 @@ struct MemberDetailSheet: View {
                             .foregroundStyle(.white)
                     }
 
-                HStack(spacing: 6) {
-                    Text(member.name)
-                        .font(.title.bold())
-                    if member.isAdmin {
-                        Image(systemName: "crown.fill")
-                            .font(.title3)
-                            .foregroundStyle(.yellow)
+                VStack(spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(member.name)
+                            .font(.title.bold())
+                        if member.isAdmin {
+                            Image(systemName: "crown.fill")
+                                .font(.title3)
+                                .foregroundStyle(.yellow)
+                        }
+                    }
+                    if let groupName {
+                        Text(groupName)
+                            .font(.caption.bold())
+                            .foregroundStyle(ringColor)
                     }
                 }
 
@@ -385,8 +543,11 @@ struct POIDetailSheet: View {
     @State private var showFullscreenPhoto = false
     @State private var isDeleting = false
 
+    // Rolul se verifică pentru grupul PROPRIU al POI-ului, nu un rol global — un user poate
+    // fi admin într-un grup vizibil pe hartă și membru simplu în altul.
     private var canManage: Bool {
-        poi.createdById == auth.currentUserId || groupService.currentUserRole == "admin"
+        poi.createdById == auth.currentUserId ||
+            groupService.myGroups.first { $0.groupId == poi.groupId }?.role == "admin"
     }
 
     var body: some View {
@@ -481,7 +642,7 @@ struct POIDetailSheet: View {
     }
 
     private func deletePOI() async {
-        guard let groupId = groupService.currentGroup?.id else { return }
+        let groupId = poi.groupId
         isDeleting = true
         if poi.photoURL != nil {
             let path = "\(groupId.uuidString)/\(poi.id.uuidString).jpg"
@@ -491,7 +652,7 @@ struct POIDetailSheet: View {
             .delete()
             .eq("id", value: poi.id.uuidString)
             .execute()
-        await dataStore.loadPOIs(groupId: groupId)
+        await dataStore.refreshMembersAndPOIs()
         dismiss()
     }
 }

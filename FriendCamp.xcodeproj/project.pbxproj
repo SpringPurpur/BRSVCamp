@@ -135,6 +135,7 @@
 			packageProductDependencies = (
 				A1CD8AF32FF506EB003E8E68 /* PostgREST */,
 				A1CD8AF52FF506EB003E8E68 /* Supabase */,
+				1BB613AFBFD00791CBF840CB /* MapCache */,
 			);
 			productName = FriendCamp;
 			productReference = A15B0FFB2FE7FDD200009EA2 /* FriendCamp.app */;
@@ -220,6 +221,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A1CD8AF22FF506EB003E8E68 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				370918C9A6756691D8D88B7D /* XCRemoteSwiftPackageReference "MapCache" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A15B0FFC2FE7FDD200009EA2 /* Products */;
@@ -622,6 +624,14 @@
 				minimumVersion = 2.5.1;
 			};
 		};
+		370918C9A6756691D8D88B7D /* XCRemoteSwiftPackageReference "MapCache" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/merlos/MapCache";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.10.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -634,6 +644,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1CD8AF22FF506EB003E8E68 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		1BB613AFBFD00791CBF840CB /* MapCache */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 370918C9A6756691D8D88B7D /* XCRemoteSwiftPackageReference "MapCache" */;
+			productName = MapCache;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

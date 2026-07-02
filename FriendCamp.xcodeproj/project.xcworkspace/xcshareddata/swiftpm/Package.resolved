@@ -1,6 +1,15 @@
 {
-  "originHash" : "497b223336ae156cc4edd8c12c3d176b975452a34540e6bdf0a3cf91a248bc9c",
+  "originHash" : "2c144d20b3eff0f2a1255fb2183ede108ac1388500cc4e446b39571acc18b72f",
   "pins" : [
+    {
+      "identity" : "mapcache",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/merlos/MapCache",
+      "state" : {
+        "revision" : "c18c99823de57b6d91c6af248a1e436d380f88cc",
+        "version" : "0.10.0"
+      }
+    },
     {
       "identity" : "supabase-swift",
       "kind" : "remoteSourceControl",
